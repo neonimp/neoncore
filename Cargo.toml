@@ -1,6 +1,6 @@
 [package]
 name = "neoncore"
-version = "1.0.0"
+version = "1.0.0-rc1"
 authors = ["Matheus Xavier <mxavier@neonlayer.com>"]
 license = "BSD-3-Clause"
 edition = "2021"
