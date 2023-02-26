@@ -1,7 +1,5 @@
-use std::fmt::{Debug, Display, Formatter};
-use crate::DarkBoxError::DeserializeBadVarint;
-use crate::Result;
 use crate::varint::VarintError::DeserializeBadVarint;
+use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
 pub enum VarintError {
@@ -124,45 +122,6 @@ pub fn varint_u128(n: u128, out: &mut [u8; varint_max::<u128>()]) -> &mut [u8] {
     &mut out[..]
 }
 
-pub trait ToVarint {
-    fn to_varint(&self, out: &mut [u8; varint_max::<Self>()]) -> &mut [u8];
-}
-
-impl ToVarint for usize {
-    #[inline]
-    fn to_varint(&self, out: &mut [u8; varint_max::<Self>()]) -> &mut [u8] {
-        varint_usize(*self, out)
-    }
-}
-
-impl ToVarint for u16 {
-    #[inline]
-    fn to_varint(&self, out: &mut [u8; varint_max::<Self>()]) -> &mut [u8] {
-        varint_u16(*self, out)
-    }
-}
-
-impl ToVarint for u32 {
-    #[inline]
-    fn to_varint(&self, out: &mut [u8; varint_max::<Self>()]) -> &mut [u8] {
-        varint_u32(*self, out)
-    }
-}
-
-impl ToVarint for u64 {
-    #[inline]
-    fn to_varint(&self, out: &mut [u8; varint_max::<Self>()]) -> &mut [u8] {
-        varint_u64(*self, out)
-    }
-}
-
-impl ToVarint for u128 {
-    #[inline]
-    fn to_varint(&self, out: &mut [u8; varint_max::<Self>()]) -> &mut [u8] {
-        varint_u128(*self, out)
-    }
-}
-
 pub trait TryTakeVarint<T: Sized> {
     #[inline]
     fn try_take_varint_u16(data: &[u8; varint_max::<u16>()]) -> Result<u16> {
@@ -177,7 +136,7 @@ pub trait TryTakeVarint<T: Sized> {
                     Err(DeserializeBadVarint)
                 } else {
                     Ok(out)
-                }
+                };
             }
         }
         Err(DeserializeBadVarint)
@@ -196,7 +155,7 @@ pub trait TryTakeVarint<T: Sized> {
                     Err(DeserializeBadVarint)
                 } else {
                     Ok(out)
-                }
+                };
             }
         }
         Err(DeserializeBadVarint)
@@ -215,7 +174,7 @@ pub trait TryTakeVarint<T: Sized> {
                     Err(DeserializeBadVarint)
                 } else {
                     Ok(out)
-                }
+                };
             }
         }
         Err(DeserializeBadVarint)
@@ -234,7 +193,7 @@ pub trait TryTakeVarint<T: Sized> {
                     Err(DeserializeBadVarint)
                 } else {
                     Ok(out)
-                }
+                };
             }
         }
         Err(DeserializeBadVarint)
@@ -243,21 +202,18 @@ pub trait TryTakeVarint<T: Sized> {
     #[cfg(target_pointer_width = "16")]
     #[inline]
     fn try_take_varint_usize(data: &[u8; varint_max::<usize>()]) -> Result<usize> {
-        self::try_take_varint_u16(data).map(|x| x as usize)
+        Self::try_take_varint_u16(data).map(|x| x as usize)
     }
 
     #[cfg(target_pointer_width = "32")]
     #[inline]
     fn try_take_varint_usize(data: &[u8; varint_max::<usize>()]) -> Result<usize> {
-        self::try_take_varint_u32(data).map(|x| x as usize)
+        Self::try_take_varint_u32(data).map(|x| x as usize)
     }
 
     #[cfg(target_pointer_width = "64")]
     #[inline]
     fn try_take_varint_usize(data: &[u8; varint_max::<usize>()]) -> Result<usize> {
-        self::try_take_varint_u64(data).map(|x| x as usize)
+        Self::try_take_varint_u64(data).map(|x| x as usize)
     }
 }
-
-/// Implement TryTakeVarint for all arrays of sized types.
-impl TryTakeVarint<T> for [T] {}

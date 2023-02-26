@@ -1,9 +1,10 @@
 [package]
 name = "neoncore"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Matheus Xavier <mxavier@neonlayer.com>"]
 license = "BSD-3-Clause"
 edition = "2021"
+repository = "https://github.com/neonimp/neoncore.git"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -1,5 +1,5 @@
-use std::io::{BufReader, Cursor, Read, Seek, SeekFrom, Write};
-
+use std::io::Read;
+use std::io::Write;
 
 pub type Result<T> = std::result::Result<T, std::io::Error>;
 
@@ -292,4 +292,77 @@ mod private {
     pub trait Sealed {}
 
     impl<T> Sealed for T {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_read_u8() {
+        let slice = [0x01u8];
+        assert_eq!(slice.read_u8(0).unwrap(), 0x01);
+    }
+
+    #[test]
+    fn test_read_u16() {
+        let slice = [0x01u8, 0x02];
+        assert_eq!(slice.read_u16(0, Endianness::LittleEndian).unwrap(), 0x0201);
+        assert_eq!(slice.read_u16(0, Endianness::BigEndian).unwrap(), 0x0102);
+    }
+
+    #[test]
+    fn test_read_u32() {
+        let slice = [0x01u8, 0x02, 0x03, 0x04];
+        assert_eq!(slice.read_u32(0, Endianness::LittleEndian).unwrap(), 0x04030201);
+        assert_eq!(slice.read_u32(0, Endianness::BigEndian).unwrap(), 0x01020304);
+    }
+
+    #[test]
+    fn test_read_u64() {
+        let slice = [0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        assert_eq!(slice.read_u64(0, Endianness::LittleEndian).unwrap(), 0x0807060504030201);
+        assert_eq!(slice.read_u64(0, Endianness::BigEndian).unwrap(), 0x0102030405060708);
+    }
+
+    #[test]
+    fn test_read_u128() {
+        let slice = [0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10];
+        assert_eq!(slice.read_u128(0, Endianness::LittleEndian).unwrap(), 0x100f0e0d0c0b0a090807060504030201);
+        assert_eq!(slice.read_u128(0, Endianness::BigEndian).unwrap(), 0x0102030405060708090a0b0c0d0e0f10);
+    }
+
+    #[test]
+    fn test_read_i8() {
+        let slice = [0x01u8];
+        assert_eq!(slice.read_i8(0).unwrap(), 0x01);
+    }
+
+    #[test]
+    fn test_read_i16() {
+        let slice = [0x01u8, 0x02];
+        assert_eq!(slice.read_i16(0, Endianness::LittleEndian).unwrap(), 0x0201);
+        assert_eq!(slice.read_i16(0, Endianness::BigEndian).unwrap(), 0x0102);
+    }
+
+    #[test]
+    fn test_read_i32() {
+        let slice = [0x01u8, 0x02, 0x03, 0x04];
+        assert_eq!(slice.read_i32(0, Endianness::LittleEndian).unwrap(), 0x04030201);
+        assert_eq!(slice.read_i32(0, Endianness::BigEndian).unwrap(), 0x01020304);
+    }
+
+    #[test]
+    fn test_read_i64() {
+        let slice = [0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        assert_eq!(slice.read_i64(0, Endianness::LittleEndian).unwrap(), 0x0807060504030201);
+        assert_eq!(slice.read_i64(0, Endianness::BigEndian).unwrap(), 0x0102030405060708);
+    }
+
+    #[test]
+    fn test_read_i128() {
+        let slice = [0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10];
+        assert_eq!(slice.read_i128(0, Endianness::LittleEndian).unwrap(), 0x100f0e0d0c0b0a090807060504030201);
+        assert_eq!(slice.read_i128(0, Endianness::BigEndian).unwrap(), 0x0102030405060708090a0b0c0d0e0f10);
+    }
 }
