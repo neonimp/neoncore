@@ -217,3 +217,54 @@ pub trait TryTakeVarint<T: Sized> {
         Self::try_take_varint_u64(data).map(|x| x as usize)
     }
 }
+
+impl TryTakeVarint<u16> for u16 {}
+impl TryTakeVarint<u32> for u32 {}
+impl TryTakeVarint<u64> for u64 {}
+impl TryTakeVarint<u128> for u128 {}
+impl TryTakeVarint<usize> for usize {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_varint_u16() {
+        let mut out = [0u8; varint_max::<u16>()];
+        for i in 0..=u16::MAX {
+            varint_u16(i, &mut out);
+            let val = u16::try_take_varint_u16(&out).unwrap();
+            assert_eq!(val, i);
+        }
+    }
+
+    #[test]
+    fn test_varint_u32() {
+        let mut out = [0u8; varint_max::<u32>()];
+        for i in 0..=u32::MAX {
+            varint_u32(i, &mut out);
+            let val = u32::try_take_varint_u32(&out).unwrap();
+            assert_eq!(val, i);
+        }
+    }
+
+    #[test]
+    fn test_varint_u64() {
+        let mut out = [0u8; varint_max::<u64>()];
+        for i in 0..=u64::MAX {
+            varint_u64(i, &mut out);
+            let val = u64::try_take_varint_u64(&out).unwrap();
+            assert_eq!(val, i);
+        }
+    }
+
+    #[test]
+    fn test_varint_u128() {
+        let mut out = [0u8; varint_max::<u128>()];
+        for i in 0..=u128::MAX {
+            varint_u128(i, &mut out);
+            let val = u128::try_take_varint_u128(&out).unwrap();
+            assert_eq!(val, i);
+        }
+    }
+}
