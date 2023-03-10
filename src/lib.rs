@@ -1,5 +1,8 @@
 //! This crate provides a set of shared utilities for
 //! working with binary streams in memory or otherwise.
 
-pub mod int_util;
-pub mod varint;
+extern crate pest;
+#[macro_use]
+extern crate pest_derive;
+
+pub mod stream_util;

@@ -1,0 +1,74 @@
+// Grammar for the stream_query language.
+// author: Matheus Xavier <neonimp>
+
+WHITESPACE = _ {" " | "\t" | "\r" | "\n"}
+COMMENT = _ {"#" ~ !("\n")* ~ ANY ~ "\n"}
+// EOS = End of stream
+EOS = {"EOS"}
+// SOS = Start of stream
+SOS = {"SOS"}
+END_OF_EXPRESSION = _ { ";" ~ NEWLINE?}
+ID_VALID_CHARS = {ASCII_ALPHANUMERIC | "_" | "-"}
+PRIMITIVE_TYPES = {"u8" | "u16" | "u32" | "u64" | "u128" | "i8" | "i16" | "i32" | "i64" | "i128" | "f32" | "f64"}
+ENDIANESS = { ^"little" | ^"big" }
+
+// Hexadecimal numbers up to 128 bits
+hex_int = @{"0x"~ASCII_HEX_DIGIT{1, 32}}
+// any string of letters and numbers, starting with a letter or _
+valid_identifier = @{!('0'..'9' | "-")+ ~ "_"* ~ (ID_VALID_CHARS)+}
+// defines the alignment of a field
+alignment = @{"~"~hex_int}
+// defines the offset of a field if it is not in sequence
+offset = @{"@"~hex_int}
+
+// hint to skip to a position before looking for the structure or look near the end or start of the stream
+// skip is absolute and near is relative
+LUH = {"SKIP" ~ hex_int | "NEAR" ~ (hex_int | EOS | SOS)}
+
+constant = {valid_identifier ~ ":" ~ PRIMITIVE_TYPES ~ "=" ~ hex_int ~ END_OF_EXPRESSION}
+
+alignment_offset = {alignment ~ offset? | offset ~ alignment?}
+// A field backref is a valid identifier followed by an optional double colon
+// and another valid identifier if no double colon is present the reference is
+// assumed to be in the same structure
+reference = @{"&"~valid_identifier ~ ("::" ~ valid_identifier)?}
+// A primitive field is a valid identifier followed by an optional alignment and or offset
+// a colon and a primitive type and a semicolon
+primitive_field = {valid_identifier+ ~ alignment_offset? ~ ":" ~ PRIMITIVE_TYPES ~ END_OF_EXPRESSION}
+// A buffer field is a valid identifier followed by an optional alignment and or offset a colon
+// the word buffer and a square bracket containing a hexadecimal number or a field reference
+// the hexadecimal number or field reference is the size of the buffer in bytes thus the field reference
+// must be a primitive field of type u8, u16, u32, u64
+// and a semicolon.
+buffer_field = {valid_identifier+ ~ alignment_offset? ~ ":" ~ "buffer" ~ "[" ~ (hex_int|reference) ~ "]" ~ END_OF_EXPRESSION}
+// A string field is a valid identifier followed by an optional alignment and or offset a colon
+// the word string and a square bracket containing a hexadecimal number or a field reference
+// the hexadecimal number or field reference is the size of the string in bytes thus the field reference
+// must be a primitive field of type u8, u16, u32, u64
+// and a semicolon.
+// additionally the string field will be validated to be a valid utf8 string
+string_field = {valid_identifier+ ~ alignment_offset? ~ ":" ~ "string" ~ "[" ~ (hex_int|reference) ~ "]" ~ END_OF_EXPRESSION}
+
+// A structure is the word struct followed by a valid identifier, a square bracket containing a hexadecimal number
+// the hex number is the signature of the structure, a curly bracket containing a list of fields,
+// an optional endianess, optional hint and a semicolon
+// the hint is a hexadecimal number that is used to hint the parser to skip to the hinted position
+// before looking for the structure
+structure = {
+    ^"struct" ~ valid_identifier ~ "[" ~ hex_int ~ "]" ~
+    "{" ~
+    (primitive_field | buffer_field | string_field)* ~
+    "}" ~ ENDIANESS? ~ LUH? ~ END_OF_EXPRESSION
+}
+
+// A document is a list of structures and comments
+// optionally preceded by the word stream and a exclamation mark and an endianess and a semicolon
+// that defines the endianess of the stream otherwise the endianess is assumed to be little endian
+// that can be overriden on a structure level by defining the endianess of the structure.
+// the document is terminated by the end of input
+document = {
+    SOI ~
+    (^"stream" ~ "!" ~ ENDIANESS ~ END_OF_EXPRESSION)? ~
+    (structure | COMMENT)* ~
+    EOI
+}
