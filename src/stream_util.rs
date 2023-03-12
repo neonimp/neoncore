@@ -33,7 +33,7 @@ pub type StreamResult<T> = Result<T, std::io::Error>;
 ///
 #[inline]
 pub fn find_u32_signature<S: Read + Seek>(
-    mut stream: S,
+    stream: &mut S,
     sig: u32,
     skip: Option<u64>,
     limit: Option<u64>,
@@ -101,7 +101,7 @@ pub fn find_u32_signature<S: Read + Seek>(
 ///
 #[inline]
 pub fn find_u64_signature<S: Read + Seek>(
-    mut stream: S,
+    stream: &mut S,
     sig: u64,
     skip: Option<u64>,
     limit: Option<u64>,
