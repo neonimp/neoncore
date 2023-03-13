@@ -6,3 +6,4 @@ extern crate pest;
 extern crate pest_derive;
 
 pub mod stream_util;
+pub mod const_fn;
