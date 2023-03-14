@@ -1,11 +1,11 @@
 macro_rules! impl_ascii_to_uint {
     ($t:ident, $w:literal) => {
-        paste::item!{
+        paste::item! {
             pub const fn [<ascii_to_ $t _le>](s: &[u8; $w]) -> $t {
                 $t::from_le_bytes(*s)
             }
         }
-        paste::item!{
+        paste::item! {
             pub const fn [<ascii_to_ $t _be>](s: &[u8; $w]) -> $t {
                 $t::from_be_bytes(*s)
             }
@@ -16,7 +16,7 @@ macro_rules! impl_ascii_to_uint {
 #[allow(unused_macros)]
 macro_rules! impl_ascii_to_uint_test {
     ($t:ident,$val:expr,$expect_le:expr,$expect_be:expr) => {
-        paste::item!{
+        paste::item! {
             #[test]
             fn [<test_ $t>]() {
                 assert_eq!([<ascii_to_ $t _le>]($val), $expect_le);
@@ -37,5 +37,10 @@ mod tests {
     impl_ascii_to_uint_test!(u16, b"AB", 0x4241, 0x4142);
     impl_ascii_to_uint_test!(u32, b"ABCD", 0x44434241, 0x41424344);
     impl_ascii_to_uint_test!(u64, b"ABCDEFGH", 0x4847464544434241, 0x4142434445464748);
-    impl_ascii_to_uint_test!(u128, b"ABCDEFGHIJKLMNOP", 0x504f4e4d4c4b4a494847464544434241, 0x4142434445464748494a4b4c4d4e4f50);
+    impl_ascii_to_uint_test!(
+        u128,
+        b"ABCDEFGHIJKLMNOP",
+        0x504f4e4d4c4b4a494847464544434241,
+        0x4142434445464748494a4b4c4d4e4f50
+    );
 }

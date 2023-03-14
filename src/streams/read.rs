@@ -1,21 +1,11 @@
 //! Utilities for working with streams.
 //! Like finding a signature in a stream, or reading a struct from a stream.
 
+use crate::streams::{AnyInt, Endianness, SeekRead};
 use byteorder::ReadBytesExt;
-use std::io::{Read, Seek, SeekFrom};
-use pest::Parser;
+use std::io::{Error, ErrorKind, SeekFrom};
 
-#[derive(Clone, Copy)]
-pub enum Endianness {
-    LittleEndian,
-    BigEndian,
-}
-
-#[derive(Parser)]
-#[grammar = "stream_query.pest"]
-pub struct StreamQueryParser;
-
-pub type StreamResult<T> = Result<T, std::io::Error>;
+pub type StreamResult<T> = Result<T, Error>;
 
 /// Finds a signature in a stream `S: Read + Seek` and returns it's position.
 /// The stream is left at the position of the signature.
@@ -32,7 +22,7 @@ pub type StreamResult<T> = Result<T, std::io::Error>;
 /// The rewind parameter can be used to rewind the stream to the position before the signature was found.
 ///
 #[inline]
-pub fn find_u32_signature<S: Read + Seek>(
+pub fn find_u32_signature<S: SeekRead>(
     stream: &mut S,
     sig: u32,
     skip: Option<u64>,
@@ -56,8 +46,8 @@ pub fn find_u32_signature<S: Read + Seek>(
     while pos < limit {
         let read = stream.read(byte)?;
         if read == 0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
+            return Err(Error::new(
+                ErrorKind::UnexpectedEof,
                 "Unexpected end of stream",
             ));
         }
@@ -100,7 +90,7 @@ pub fn find_u32_signature<S: Read + Seek>(
 /// The rewind parameter can be used to rewind the stream to the position before the signature was found.
 ///
 #[inline]
-pub fn find_u64_signature<S: Read + Seek>(
+pub fn find_u64_signature<S: SeekRead>(
     stream: &mut S,
     sig: u64,
     skip: Option<u64>,
@@ -124,8 +114,8 @@ pub fn find_u64_signature<S: Read + Seek>(
     while pos < limit {
         let read = stream.read(byte)?;
         if read == 0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
+            return Err(Error::new(
+                ErrorKind::UnexpectedEof,
                 "Unexpected end of stream",
             ));
         }
@@ -153,10 +143,162 @@ pub fn find_u64_signature<S: Read + Seek>(
     Ok(pos)
 }
 
+/// Scans `stream` for occurrences of `sig` and returns their positions.
+/// The stream is left at the position of the last occurrence of `sig`.
+pub fn find_all_u32_signatures<S: SeekRead>(
+    stream: &mut S,
+    sig: u32,
+    endianness: Endianness,
+) -> StreamResult<Vec<u64>> {
+    let mut positions = Vec::new();
+    loop {
+        let pos = find_u32_signature(stream, sig, None, None, endianness, true)?;
+        positions.push(pos);
+    }
+}
+
+/// Scans `stream` for occurrences of `sig` and returns their positions.
+/// The stream is left at the position of the last occurrence of `sig`.
+pub fn find_all_u64_signatures<S: SeekRead>(
+    stream: &mut S,
+    sig: u64,
+    endianness: Endianness,
+) -> StreamResult<Vec<u64>> {
+    let mut positions = Vec::new();
+    loop {
+        let pos = find_u64_signature(stream, sig, None, None, endianness, true)?;
+        positions.push(pos);
+    }
+}
+
+/// Reads `n` consecutive `u16` from `stream` while advancing the stream `n * 2` bytes.
+///
+/// # Arguments
+///
+/// * `stream`: The stream to read from.
+/// * `n`: The number of `u16` to read.
+/// * `endianess`: The endianness of the `u16`s in the stream.
+///
+/// returns: vector of the read `u16`s in order.
+///
+/// # Example
+///
+/// ```rust
+/// use std::io::Cursor;
+/// use neoncore::streams::read::{Endianness, read_n_u16};
+///
+/// let mut stream = Cursor::new(vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
+/// let v = read_n_u16(&mut stream, 3, Endianness::LittleEndian).unwrap();
+/// assert_eq!(v, vec![1, 2, 3]);
+/// ```
+pub fn read_n_u16<S: SeekRead>(
+    mut stream: S,
+    n: u64,
+    endianess: Endianness,
+) -> StreamResult<Vec<u16>> {
+    let mut vl = Vec::with_capacity(n as usize);
+    for _ in 0..n {
+        let v = match endianess {
+            Endianness::LittleEndian => stream.read_u16::<byteorder::LittleEndian>()?,
+            Endianness::BigEndian => stream.read_u16::<byteorder::BigEndian>()?,
+        };
+        vl.push(v);
+    }
+    Ok(vl)
+}
+
+/// Reads `n` consecutive `u32` from `stream` while advancing the stream `n * 4` bytes.
+///
+/// # Arguments
+///
+/// * `stream`: The stream to read from.
+/// * `n`: The number of `u32` to read.
+/// * `endianess`: The endianness of the `u32`s in the stream.
+///
+/// returns: vector of the read `u32`s in order.
+///
+/// # Example
+///
+/// ```rust
+/// use std::io::Cursor;
+/// use neoncore::streams::read::{Endianness, read_n_u32};
+///
+/// let mut stream = Cursor::new(vec![0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]);
+/// let v = read_n_u32(&mut stream, 3, Endianness::LittleEndian).unwrap();
+/// assert_eq!(v, vec![1, 2, 3]);
+/// ```
+pub fn read_n_u32<S: SeekRead>(
+    mut stream: S,
+    n: u64,
+    endianess: Endianness,
+) -> StreamResult<Vec<u32>> {
+    let mut vl = Vec::with_capacity(n as usize);
+    for _ in 0..n {
+        let v = match endianess {
+            Endianness::LittleEndian => stream.read_u32::<byteorder::LittleEndian>()?,
+            Endianness::BigEndian => stream.read_u32::<byteorder::BigEndian>()?,
+        };
+        vl.push(v);
+    }
+    Ok(vl)
+}
+
+/// Reads `n` consecutive `u64` from `stream` while advancing the stream `n * 8` bytes.
+///
+/// # Arguments
+///
+/// * `stream`: The stream to read from.
+/// * `n`: The number of `u64` to read.
+/// * `endianess`: The endianness of the `u64`s in the stream.
+///
+/// returns: vector of the read `u64`s in order.
+///
+/// # Example
+///
+/// ```rust
+/// use std::io::Cursor;
+/// use neoncore::streams::read::{Endianness, read_n_u64};
+///
+/// let mut stream = Cursor::new(b"\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00");
+/// let v = read_n_u64(&mut stream, 3, Endianness::LittleEndian).unwrap();
+/// assert_eq!(v, vec![1, 2, 3]);
+/// ```
+pub fn read_n_u64<S: SeekRead>(
+    mut stream: S,
+    n: u64,
+    endianess: Endianness,
+) -> StreamResult<Vec<u64>> {
+    let mut vl = Vec::with_capacity(n as usize);
+    for _ in 0..n {
+        let v = match endianess {
+            Endianness::LittleEndian => stream.read_u64::<byteorder::LittleEndian>()?,
+            Endianness::BigEndian => stream.read_u64::<byteorder::BigEndian>()?,
+        };
+        vl.push(v);
+    }
+    Ok(vl)
+}
+
+pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
+    let mut vl = Vec::with_capacity(n as usize);
+    let mut byte = [0; 1];
+    for _ in 0..n {
+        let read = stream.read(&mut byte)?;
+        if read != 1 {
+            return Err(Error::new(
+                ErrorKind::UnexpectedEof,
+                "Unexpected EOF while reading bytes",
+            ));
+        }
+        vl.push(byte[0]);
+    }
+    Ok(vl)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stream_util::Endianness::LittleEndian;
+    use crate::streams::read::Endianness::LittleEndian;
 
     const DATA: [u8; 168] = [
         0x00, 0x2F, 0x6D, 0x61, 0x78, 0x5F, 0x73, 0x69, 0x7A, 0x65, 0x2E, 0x72, 0x73, 0x55, 0x54,
@@ -195,5 +337,26 @@ mod tests {
         let pos_1 = find_u64_signature(&mut stream, sig, None, None, LittleEndian, true).unwrap();
 
         assert_eq!(pos_1, 0x10);
+    }
+
+    #[test]
+    fn test_read_n_u16() {
+        let stream = std::io::Cursor::new(DATA);
+        let v = read_n_u16(stream, 3, LittleEndian).unwrap();
+        assert_eq!(v, vec![0x2F00, 0x616D, 0x5F78]);
+    }
+
+    #[test]
+    fn test_read_n_u32() {
+        let stream = std::io::Cursor::new(DATA);
+        let v = read_n_u32(stream, 3, LittleEndian).unwrap();
+        assert_eq!(v, vec![0x616D2F00, 0x69735F78, 0x722E657A]);
+    }
+
+    #[test]
+    fn test_read_n_u64() {
+        let stream = std::io::Cursor::new(DATA);
+        let v = read_n_u64(stream, 3, LittleEndian).unwrap();
+        assert_eq!(v, vec![0x69735f78616d2f00, 0x5545573722e657a, 0x4b5063eebaa90100]);
     }
 }
