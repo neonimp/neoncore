@@ -12,5 +12,3 @@ repository = "https://github.com/neonimp/neoncore.git"
 [dependencies]
 byteorder = "1.4.3"
 paste = "1.0.12"
-pest = "2.5.6"
-pest_derive = "2.5.6"

@@ -1,9 +1,8 @@
-use std::io::{Read, Seek, Write};
 use byteorder::WriteBytesExt;
+use std::io::{Read, Seek, Write};
 
 pub mod read;
 pub mod write;
-pub mod structlang;
 
 pub trait SeekRead: Read + Seek {}
 pub trait SeekWrite: Write + Seek {}
@@ -18,15 +17,18 @@ pub enum Endianness {
     LittleEndian,
     BigEndian,
 }
+
 pub enum AnyInt {
     U8(u8),
     U16(u16),
     U32(u32),
     U64(u64),
+    U128(u128),
     I8(i8),
     I16(i16),
     I32(i32),
     I64(i64),
+    I128(i128),
 }
 
 impl AnyInt {
@@ -39,11 +41,35 @@ impl AnyInt {
             AnyInt::U16(v) => writer.write_u16::<byteorder::LittleEndian>(*v),
             AnyInt::U32(v) => writer.write_u32::<byteorder::LittleEndian>(*v),
             AnyInt::U64(v) => writer.write_u64::<byteorder::LittleEndian>(*v),
+            AnyInt::U128(v) => writer.write_u128::<byteorder::LittleEndian>(*v),
             AnyInt::I8(v) => writer.write_i8(*v),
             AnyInt::I16(v) => writer.write_i16::<byteorder::LittleEndian>(*v),
             AnyInt::I32(v) => writer.write_i32::<byteorder::LittleEndian>(*v),
             AnyInt::I64(v) => writer.write_i64::<byteorder::LittleEndian>(*v),
-        }.unwrap();
+            AnyInt::I128(v) => writer.write_i128::<byteorder::LittleEndian>(*v),
+        }
+        .unwrap();
+
+        writer.into_inner()
+    }
+
+    pub fn to_bytes_be(&self) -> Vec<u8> {
+        let buf = Vec::with_capacity(self.size());
+        let mut writer = std::io::Cursor::new(buf);
+
+        match self {
+            AnyInt::U8(v) => writer.write_u8(*v),
+            AnyInt::U16(v) => writer.write_u16::<byteorder::BigEndian>(*v),
+            AnyInt::U32(v) => writer.write_u32::<byteorder::BigEndian>(*v),
+            AnyInt::U64(v) => writer.write_u64::<byteorder::BigEndian>(*v),
+            AnyInt::U128(v) => writer.write_u128::<byteorder::BigEndian>(*v),
+            AnyInt::I8(v) => writer.write_i8(*v),
+            AnyInt::I16(v) => writer.write_i16::<byteorder::BigEndian>(*v),
+            AnyInt::I32(v) => writer.write_i32::<byteorder::BigEndian>(*v),
+            AnyInt::I64(v) => writer.write_i64::<byteorder::BigEndian>(*v),
+            AnyInt::I128(v) => writer.write_i128::<byteorder::BigEndian>(*v),
+        }
+        .unwrap();
 
         writer.into_inner()
     }
@@ -54,11 +80,12 @@ impl AnyInt {
             AnyInt::U16(_) => 2,
             AnyInt::U32(_) => 4,
             AnyInt::U64(_) => 8,
+            AnyInt::U128(_) => 16,
             AnyInt::I8(_) => 1,
             AnyInt::I16(_) => 2,
             AnyInt::I32(_) => 4,
             AnyInt::I64(_) => 8,
+            AnyInt::I128(_) => 16,
         }
     }
 }
-

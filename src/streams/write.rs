@@ -1,6 +1,7 @@
-use std::ops::Deref;
+use crate::streams::SeekWrite;
 use byteorder::WriteBytesExt;
-use crate::streams::{Endianness, SeekWrite};
+
+use super::{AnyInt, Endianness};
 
 pub trait SizedBuffer: AsRef<[u8]> + AsMut<[u8]> + Default + Clone + Sized {}
 
@@ -27,14 +28,34 @@ impl<T: AsRef<[u8]> + AsMut<[u8]> + Default + Clone + Sized> SizedBuffer for T {
 /// assert_eq!(cursor.into_inner(), b"Hello World");
 /// ```
 pub fn write_bytes<S: SeekWrite, I: SizedBuffer>(
-    stream: &mut S,
-    bytes: I,
-) -> Result<u64, std::io::Error>
-{
+    mut stream: S,
+    mut bytes: I,
+) -> Result<u64, std::io::Error> {
     let mut written = 0;
     for byte in bytes.as_ref() {
         stream.write_u8(*byte)?;
         written += 1;
+    }
+    Ok(written)
+}
+
+pub fn write_values<S: SeekWrite>(
+    mut stream: S,
+    values: &[AnyInt],
+    endianess: Endianness,
+) -> Result<u64, std::io::Error> {
+    let mut written = 0;
+    for v in values {
+        match endianess {
+            Endianness::LittleEndian => {
+                let vb = v.to_bytes_le();
+                written += write_bytes(&mut stream, vb)?;
+            }
+            Endianness::BigEndian => {
+                let vb = v.to_bytes_be();
+                written += write_bytes(&mut stream, vb)?;
+            }
+        }
     }
     Ok(written)
 }
