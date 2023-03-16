@@ -89,3 +89,63 @@ impl AnyInt {
         }
     }
 }
+
+impl From<u8> for AnyInt {
+    fn from(v: u8) -> Self {
+        AnyInt::U8(v)
+    }
+}
+    
+impl From<u16> for AnyInt {
+    fn from(v: u16) -> Self {
+        AnyInt::U16(v)
+    }
+}
+
+impl From<u32> for AnyInt {
+    fn from(v: u32) -> Self {
+        AnyInt::U32(v)
+    }
+}
+
+impl From<u64> for AnyInt {
+    fn from(v: u64) -> Self {
+        AnyInt::U64(v)
+    }
+}
+
+impl From<u128> for AnyInt {
+    fn from(v: u128) -> Self {
+        AnyInt::U128(v)
+    }
+}
+
+impl From<i8> for AnyInt {
+    fn from(v: i8) -> Self {
+        AnyInt::I8(v)
+    }
+}
+
+impl From<i16> for AnyInt {
+    fn from(v: i16) -> Self {
+        AnyInt::I16(v)
+    }
+}
+
+impl From<i32> for AnyInt {
+    fn from(v: i32) -> Self {
+        AnyInt::I32(v)
+    }
+}
+
+impl From<i64> for AnyInt {
+    fn from(v: i64) -> Self {
+        AnyInt::I64(v)
+    }
+}
+
+impl From<i128> for AnyInt {
+    fn from(v: i128) -> Self {
+        AnyInt::I128(v)
+    }
+}
