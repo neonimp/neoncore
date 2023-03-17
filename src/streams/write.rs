@@ -1,3 +1,5 @@
+//! Utilities for writing to streams of binary data
+
 use crate::streams::SeekWrite;
 use byteorder::WriteBytesExt;
 
@@ -130,17 +132,17 @@ pub fn write_lpbuf<S: SeekWrite>(
 }
 
 /// Write a string to a stream as a lpbuff
-/// 
+///
 /// # Arguments
 /// * `stream` - The stream to write to
 /// * `lptype` - The width of the length prefix
 /// * `lpend` - The endianness of the length prefix
 /// * `string` - The string to write
-/// 
+///
 /// # Returns
 /// * `Ok(u64)` - The number of bytes written
 /// * `Err(std::io::Error)` - The error encountered while writing
-/// 
+///
 /// # Note
 /// This function is a wrapper around `write_lpbuf` that converts the string to bytes
 pub fn write_lpstr<S: SeekWrite>(
@@ -152,13 +154,12 @@ pub fn write_lpstr<S: SeekWrite>(
     Ok(write_lpbuf(&mut stream, lptype, lpend, string.as_bytes())?)
 }
 
-
 /// Write a string to a stream as a null-terminated string
-/// 
+///
 /// # Arguments
 /// * `stream` - The stream to write to
 /// * `string` - The string to write
-/// 
+///
 /// # Returns
 /// * `Ok(u64)` - The number of bytes written
 /// * `Err(std::io::Error)` - The error encountered while writing

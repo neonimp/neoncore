@@ -15,14 +15,15 @@ impl<T: Read + Seek> SeekRead for T {}
 impl<T: Write + Seek> SeekWrite for T {}
 impl<T: Read + Write + Seek> SeekReadWrite for T {}
 
+/// The endianness of a stream
 #[derive(Clone, Copy)]
 pub enum Endianness {
     LittleEndian,
     BigEndian,
 }
 
-#[derive(Clone, Copy)]
-
+/// The width of a length prefix for lp family functions
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LPWidth {
     LP8,
     LP16,
@@ -50,6 +51,8 @@ impl LPWidth {
     }
 }
 
+/// A type that can hold any integer type
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AnyInt {
     U8(u8),
     U16(u16),
@@ -127,7 +130,7 @@ impl From<u8> for AnyInt {
         AnyInt::U8(v)
     }
 }
-    
+
 impl From<u16> for AnyInt {
     fn from(v: u16) -> Self {
         AnyInt::U16(v)

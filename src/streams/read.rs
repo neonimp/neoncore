@@ -317,10 +317,10 @@ pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
 /// | P    | usize | Platform dependent     |
 /// | s    | var   | String null terminated |
 /// | S    | var   | String length prefixed |
-/// 
+///
 /// # Returns
 /// The number of bytes required to read the given format string with [`read_format`].
-/// 
+///
 pub fn format_required_bytes(format: &str) -> u64 {
     let mut bytes = 0;
     let mut chars = format.chars();
@@ -407,15 +407,15 @@ pub fn read_format<S: SeekRead>(mut stream: S, format: &str) -> StreamResult<Vec
 }
 
 /// Read a lenght prefixed buffer from the stream.
-/// 
+///
 /// # Arguments
 /// * `stream`: The stream to read from.
 /// * `lptype`: The width of the lenght prefix.
 /// * `lpend`: The endianness of the lenght prefix.
-/// 
+///
 /// # Returns
 /// The read buffer.
-/// 
+///
 /// # Errors
 /// This function will return an error in the following cases:
 /// * The stream ends before `len` bytes are read.
@@ -447,15 +447,15 @@ pub fn read_lpbuf<S: SeekRead>(
 }
 
 /// Read a lenght prefixed string from the stream.
-/// 
+///
 /// # Arguments
 /// * `stream`: The stream to read from.
 /// * `lptype`: The width of the lenght prefix.
 /// * `lpend`: The endianness of the lenght prefix.
-/// 
+///
 /// # Returns
 /// The read string.
-/// 
+///
 /// # Errors
 /// This function will return an error in the following cases:
 /// * The stream ends before `len` bytes are read.
@@ -475,11 +475,11 @@ pub fn read_lpstr<S: SeekRead>(
 }
 
 /// read a null terminated string from the stream of at most `maxlen` bytes.
-/// 
+///
 /// # Arguments
 /// * `stream`: The stream to read from.
 /// * `maxlen`: The maximum length of the string.
-/// 
+///
 /// # Returns
 /// The read string.
 pub fn read_cstr<S: SeekRead>(mut stream: S, maxlen: usize) -> StreamResult<String> {
