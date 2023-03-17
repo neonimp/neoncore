@@ -29,7 +29,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]> + Default + Clone + Sized> SizedBuffer for T {
 /// ```
 pub fn write_bytes<S: SeekWrite, I: SizedBuffer>(
     mut stream: S,
-    mut bytes: I,
+    bytes: I,
 ) -> Result<u64, std::io::Error> {
     let mut written = 0;
     for byte in bytes.as_ref() {

@@ -295,6 +295,107 @@ pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
     Ok(vl)
 }
 
+/// How many input bytes are required at least to read the given format string.
+///
+/// # Arguments
+/// * `format`: The format string.
+///
+/// # Format characters
+/// | Char | Width | Meaning             |
+/// |------|-------|---------------------|
+/// | !    | -     | BigEndian           |
+/// | @    | -     | Little endian       |
+/// | x    | 1     | skips a single byte |
+/// | h    | 2     | Little endian       |
+/// | H    | 2     | Big endian          |
+/// | w    | 4     | Little endian       |
+/// | W    | 4     | Big endian          |
+/// | q    | 8     | Little endian       |
+/// | Q    | 8     | Big endian          |
+/// | P    | usize | Platform dependent  |
+pub fn format_required_bytes(format: &str) -> usize {
+    let mut bytes = 0;
+    let mut chars = format.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            // endianness
+            '!' | '@' => {}
+            // skip
+            'x' => bytes += 1,
+            'h' | 'H' => bytes += 2,
+            'w' | 'W' => bytes += 4,
+            'q' | 'Q' => bytes += 8,
+            _ => panic!("Unknown format character: {}", c),
+        }
+    }
+    bytes
+}
+
+/// Read the stream according to the given `format` and return the result.
+///
+/// # Arguments
+/// * `stream`: The stream to read from.
+/// * `format`: The format string.
+///
+/// # Format characters
+/// See `format_required_bytes` for a list of format characters.
+///
+/// # Returns
+/// a `Vec<AnyInt>` containing the read values.
+pub fn read_format<S: SeekRead>(mut stream: S, format: &str) -> StreamResult<Vec<AnyInt>> {
+    let mut values = Vec::new();
+    let mut chars = format.chars();
+    let endianess = match chars.next() {
+        Some('!') => Endianness::BigEndian,
+        Some('@') => Endianness::LittleEndian,
+        _ => {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Format string must start with either ! or @",
+            ))
+        },
+    };
+
+    while let Some(c) = chars.next() {
+        let v = match endianess {
+            Endianness::BigEndian => match c {
+                'x' => AnyInt::U8(stream.read_u8()?),
+                'h' => AnyInt::U16(stream.read_u16::<byteorder::BigEndian>()?),
+                'w' => AnyInt::U32(stream.read_u32::<byteorder::BigEndian>()?),
+                'q' => AnyInt::U64(stream.read_u64::<byteorder::BigEndian>()?),
+                'H' => AnyInt::I16(stream.read_i16::<byteorder::BigEndian>()?),
+                'W' => AnyInt::I32(stream.read_i32::<byteorder::BigEndian>()?),
+                'Q' => AnyInt::I64(stream.read_i64::<byteorder::BigEndian>()?),
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        format!("Unknown format character: {}", c),
+                    ))
+                }
+            },
+            Endianness::LittleEndian => match c {
+                'x' => AnyInt::U8(stream.read_u8()?),
+                'h' => AnyInt::U16(stream.read_u16::<byteorder::LittleEndian>()?),
+                'w' => AnyInt::U32(stream.read_u32::<byteorder::LittleEndian>()?),
+                'q' => AnyInt::U64(stream.read_u64::<byteorder::LittleEndian>()?),
+                'H' => AnyInt::I16(stream.read_i16::<byteorder::LittleEndian>()?),
+                'W' => AnyInt::I32(stream.read_i32::<byteorder::LittleEndian>()?),
+                'Q' => AnyInt::I64(stream.read_i64::<byteorder::LittleEndian>()?),
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        format!("Unknown format character: {}", c),
+                    ))
+                }
+            },
+        };
+        if c != 'x' {
+            values.push(v);
+        }
+    }
+    Ok(values)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -357,6 +458,9 @@ mod tests {
     fn test_read_n_u64() {
         let stream = std::io::Cursor::new(DATA);
         let v = read_n_u64(stream, 3, LittleEndian).unwrap();
-        assert_eq!(v, vec![0x69735f78616d2f00, 0x5545573722e657a, 0x4b5063eebaa90100]);
+        assert_eq!(
+            v,
+            vec![0x69735f78616d2f00, 0x5545573722e657a, 0x4b5063eebaa90100]
+        );
     }
 }

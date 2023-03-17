@@ -18,6 +18,9 @@ pub enum Endianness {
     BigEndian,
 }
 
+#[derive(Clone, Copy)]
+
+
 pub enum AnyInt {
     U8(u8),
     U16(u16),
