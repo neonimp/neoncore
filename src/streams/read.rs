@@ -302,19 +302,18 @@ pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
 /// # Arguments
 /// * `format`: The format string.
 ///
-/// # Format characters
-/// | Char | Width | Meaning                |
-/// |------|-------|------------------------|
-/// | !    | -     | BigEndian              |
-/// | @    | -     | Little endian          |
-/// | x    | 1     | skips a single byte    |
-/// | h    | 2     | Little endian          |
-/// | H    | 2     | Big endian             |
-/// | w    | 4     | Little endian          |
-/// | W    | 4     | Big endian             |
-/// | q    | 8     | Little endian          |
-/// | Q    | 8     | Big endian             |
-/// | P    | usize | Platform dependent     |
+/// | Char | Width | Meaning             |
+/// |------|-------|---------------------|
+/// | !    | -     | BigEndian           |
+/// | @    | -     | Little endian       |
+/// | x    | 1     | skips a single byte |
+/// | h    | 2     | unsigned            |
+/// | H    | 2     | signed              |
+/// | w    | 4     | unsigned            |
+/// | W    | 4     | signed              |
+/// | q    | 8     | unsigned            |
+/// | Q    | 8     | signed              |
+/// | P    | usize | Platform dependent  |
 ///
 /// # Returns
 /// The number of bytes required to read the given format string with [`read_format`].
@@ -368,7 +367,6 @@ pub fn read_format<S: SeekRead>(mut stream: S, format: &str) -> StreamResult<Vec
         }
         let v = match endianess {
             Endianness::BigEndian => match c {
-                'x' => AnyInt::U8(stream.read_u8()?),
                 'h' => AnyInt::U16(stream.read_u16::<byteorder::BigEndian>()?),
                 'w' => AnyInt::U32(stream.read_u32::<byteorder::BigEndian>()?),
                 'q' => AnyInt::U64(stream.read_u64::<byteorder::BigEndian>()?),
@@ -383,7 +381,6 @@ pub fn read_format<S: SeekRead>(mut stream: S, format: &str) -> StreamResult<Vec
                 }
             },
             Endianness::LittleEndian => match c {
-                'x' => AnyInt::U8(stream.read_u8()?),
                 'h' => AnyInt::U16(stream.read_u16::<byteorder::LittleEndian>()?),
                 'w' => AnyInt::U32(stream.read_u32::<byteorder::LittleEndian>()?),
                 'q' => AnyInt::U64(stream.read_u64::<byteorder::LittleEndian>()?),
