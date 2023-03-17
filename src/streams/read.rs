@@ -5,6 +5,8 @@ use crate::streams::{AnyInt, Endianness, SeekRead};
 use byteorder::ReadBytesExt;
 use std::io::{Error, ErrorKind, SeekFrom};
 
+use super::LPWidth;
+
 pub type StreamResult<T> = Result<T, Error>;
 
 /// Finds a signature in a stream `S: Read + Seek` and returns it's position.
@@ -301,19 +303,25 @@ pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
 /// * `format`: The format string.
 ///
 /// # Format characters
-/// | Char | Width | Meaning             |
-/// |------|-------|---------------------|
-/// | !    | -     | BigEndian           |
-/// | @    | -     | Little endian       |
-/// | x    | 1     | skips a single byte |
-/// | h    | 2     | Little endian       |
-/// | H    | 2     | Big endian          |
-/// | w    | 4     | Little endian       |
-/// | W    | 4     | Big endian          |
-/// | q    | 8     | Little endian       |
-/// | Q    | 8     | Big endian          |
-/// | P    | usize | Platform dependent  |
-pub fn format_required_bytes(format: &str) -> usize {
+/// | Char | Width | Meaning                |
+/// |------|-------|------------------------|
+/// | !    | -     | BigEndian              |
+/// | @    | -     | Little endian          |
+/// | x    | 1     | skips a single byte    |
+/// | h    | 2     | Little endian          |
+/// | H    | 2     | Big endian             |
+/// | w    | 4     | Little endian          |
+/// | W    | 4     | Big endian             |
+/// | q    | 8     | Little endian          |
+/// | Q    | 8     | Big endian             |
+/// | P    | usize | Platform dependent     |
+/// | s    | var   | String null terminated |
+/// | S    | var   | String length prefixed |
+/// 
+/// # Returns
+/// The number of bytes required to read the given format string with [`read_format`].
+/// 
+pub fn format_required_bytes(format: &str) -> u64 {
     let mut bytes = 0;
     let mut chars = format.chars();
     while let Some(c) = chars.next() {
@@ -338,7 +346,7 @@ pub fn format_required_bytes(format: &str) -> usize {
 /// * `format`: The format string.
 ///
 /// # Format characters
-/// See `format_required_bytes` for a list of format characters.
+/// See [`format_required_bytes`] for a list of format characters.
 ///
 /// # Returns
 /// a `Vec<AnyInt>` containing the read values.
@@ -353,10 +361,14 @@ pub fn read_format<S: SeekRead>(mut stream: S, format: &str) -> StreamResult<Vec
                 ErrorKind::InvalidInput,
                 "Format string must start with either ! or @",
             ))
-        },
+        }
     };
 
     while let Some(c) = chars.next() {
+        if c == 'x' {
+            stream.seek(SeekFrom::Current(1))?;
+            continue;
+        }
         let v = match endianess {
             Endianness::BigEndian => match c {
                 'x' => AnyInt::U8(stream.read_u8()?),
@@ -389,11 +401,109 @@ pub fn read_format<S: SeekRead>(mut stream: S, format: &str) -> StreamResult<Vec
                 }
             },
         };
-        if c != 'x' {
-            values.push(v);
-        }
+        values.push(v);
     }
     Ok(values)
+}
+
+/// Read a lenght prefixed buffer from the stream.
+/// 
+/// # Arguments
+/// * `stream`: The stream to read from.
+/// * `lptype`: The width of the lenght prefix.
+/// * `lpend`: The endianness of the lenght prefix.
+/// 
+/// # Returns
+/// The read buffer.
+/// 
+/// # Errors
+/// This function will return an error in the following cases:
+/// * The stream ends before `len` bytes are read.
+/// * The stream returns an error.
+pub fn read_lpbuf<S: SeekRead>(
+    mut stream: S,
+    lptype: LPWidth,
+    lpend: Endianness,
+) -> StreamResult<Vec<u8>> {
+    let len = match lpend {
+        Endianness::BigEndian => match lptype {
+            LPWidth::LP8 => stream.read_u8()? as usize,
+            LPWidth::LP16 => stream.read_u16::<byteorder::BigEndian>()? as usize,
+            LPWidth::LP32 => stream.read_u32::<byteorder::BigEndian>()? as usize,
+            LPWidth::LP64 => stream.read_u64::<byteorder::BigEndian>()? as usize,
+        },
+        Endianness::LittleEndian => match lptype {
+            LPWidth::LP8 => stream.read_u8()? as usize,
+            LPWidth::LP16 => stream.read_u16::<byteorder::LittleEndian>()? as usize,
+            LPWidth::LP32 => stream.read_u32::<byteorder::LittleEndian>()? as usize,
+            LPWidth::LP64 => stream.read_u64::<byteorder::LittleEndian>()? as usize,
+        },
+    };
+
+    let mut buf = vec![0; len];
+    stream.read_exact(&mut buf)?;
+
+    Ok(buf)
+}
+
+/// Read a lenght prefixed string from the stream.
+/// 
+/// # Arguments
+/// * `stream`: The stream to read from.
+/// * `lptype`: The width of the lenght prefix.
+/// * `lpend`: The endianness of the lenght prefix.
+/// 
+/// # Returns
+/// The read string.
+/// 
+/// # Errors
+/// This function will return an error in the following cases:
+/// * The stream ends before `len` bytes are read.
+/// * The read bytes are not valid UTF-8.
+/// * The stream returns an error.
+pub fn read_lpstr<S: SeekRead>(
+    mut stream: S,
+    lptype: LPWidth,
+    lpend: Endianness,
+) -> StreamResult<String> {
+    let buf = read_lpbuf(&mut stream, lptype, lpend)?;
+
+    match String::from_utf8(buf) {
+        Ok(s) => Ok(s),
+        Err(e) => Err(Error::new(ErrorKind::InvalidData, e)),
+    }
+}
+
+/// read a null terminated string from the stream of at most `maxlen` bytes.
+/// 
+/// # Arguments
+/// * `stream`: The stream to read from.
+/// * `maxlen`: The maximum length of the string.
+/// 
+/// # Returns
+/// The read string.
+pub fn read_cstr<S: SeekRead>(mut stream: S, maxlen: usize) -> StreamResult<String> {
+    let mut buf = vec![0; maxlen];
+    let mut i = 0;
+    loop {
+        if i >= maxlen {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "String is longer than maxlen",
+            ));
+        }
+        let b = stream.read_u8()?;
+        if b == 0 {
+            break;
+        }
+        buf[i] = b;
+        i += 1;
+    }
+    buf.truncate(i);
+    match String::from_utf8(buf) {
+        Ok(s) => Ok(s),
+        Err(e) => Err(Error::new(ErrorKind::InvalidData, e)),
+    }
 }
 
 #[cfg(test)]

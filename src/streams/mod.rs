@@ -1,3 +1,6 @@
+//! This module has utilities for reading and writing to streams
+//! of binary data see [`mod@read`] and [`mod@write`] for more information.
+
 use byteorder::WriteBytesExt;
 use std::io::{Read, Seek, Write};
 
@@ -20,6 +23,32 @@ pub enum Endianness {
 
 #[derive(Clone, Copy)]
 
+pub enum LPWidth {
+    LP8,
+    LP16,
+    LP32,
+    LP64,
+}
+
+impl LPWidth {
+    pub fn size(&self) -> usize {
+        match self {
+            LPWidth::LP8 => 1,
+            LPWidth::LP16 => 2,
+            LPWidth::LP32 => 4,
+            LPWidth::LP64 => 8,
+        }
+    }
+
+    pub fn usize_fits(lptype: LPWidth, len: usize) -> bool {
+        match lptype {
+            LPWidth::LP8 => len <= u8::MAX as usize,
+            LPWidth::LP16 => len <= u16::MAX as usize,
+            LPWidth::LP32 => len <= u32::MAX as usize,
+            LPWidth::LP64 => len <= u64::MAX as usize,
+        }
+    }
+}
 
 pub enum AnyInt {
     U8(u8),

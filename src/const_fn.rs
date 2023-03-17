@@ -1,3 +1,6 @@
+//! Const functions for ascii to uint
+//! and some related functions.
+
 macro_rules! impl_ascii_to_uint {
     ($t:ident, $w:literal) => {
         paste::item! {
