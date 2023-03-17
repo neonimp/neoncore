@@ -152,3 +152,93 @@ impl From<i128> for AnyInt {
         AnyInt::I128(v)
     }
 }
+
+impl From<AnyInt> for u8 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::U8(v) => v,
+            _ => panic!("Cannot convert to u8"),
+        }
+    }
+}
+
+impl From<AnyInt> for u16 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::U16(v) => v,
+            _ => panic!("Cannot convert to u16"),
+        }
+    }
+}
+
+impl From<AnyInt> for u32 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::U32(v) => v,
+            _ => panic!("Cannot convert to u32"),
+        }
+    }
+}
+
+impl From<AnyInt> for u64 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::U64(v) => v,
+            _ => panic!("Cannot convert to u64"),
+        }
+    }
+}
+
+impl From<AnyInt> for u128 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::U128(v) => v,
+            _ => panic!("Cannot convert to u128"),
+        }
+    }
+}
+
+impl From<AnyInt> for i8 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::I8(v) => v,
+            _ => panic!("Cannot convert to i8"),
+        }
+    }
+}
+
+impl From<AnyInt> for i16 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::I16(v) => v,
+            _ => panic!("Cannot convert to i16"),
+        }
+    }
+}
+
+impl From<AnyInt> for i32 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::I32(v) => v,
+            _ => panic!("Cannot convert to i32"),
+        }
+    }
+}
+
+impl From<AnyInt> for i64 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::I64(v) => v,
+            _ => panic!("Cannot convert to i64"),
+        }
+    }
+}
+
+impl From<AnyInt> for i128 {
+    fn from(v: AnyInt) -> Self {
+        match v {
+            AnyInt::I128(v) => v,
+            _ => panic!("Cannot convert to i128"),
+        }
+    }
+}
