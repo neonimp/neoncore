@@ -4,8 +4,8 @@
 use byteorder::WriteBytesExt;
 use std::io::{Read, Seek, Write};
 
-pub mod read;
 pub mod write;
+pub mod read;
 
 pub trait SeekRead: Read + Seek {}
 pub trait SeekWrite: Write + Seek {}
@@ -185,92 +185,142 @@ impl From<i128> for AnyInt {
     }
 }
 
-impl From<AnyInt> for u8 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for u8 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::U8(v) => v,
-            _ => panic!("Cannot convert to u8"),
+            AnyInt::U8(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to u8", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }
 
-impl From<AnyInt> for u16 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for u16 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::U16(v) => v,
-            _ => panic!("Cannot convert to u16"),
+            AnyInt::U16(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to u16", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }
 
-impl From<AnyInt> for u32 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for u32 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::U32(v) => v,
-            _ => panic!("Cannot convert to u32"),
+            AnyInt::U32(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to u32", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }
 
-impl From<AnyInt> for u64 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for u64 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::U64(v) => v,
-            _ => panic!("Cannot convert to u64"),
+            AnyInt::U64(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to u64", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }
 
-impl From<AnyInt> for u128 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for u128 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::U128(v) => v,
-            _ => panic!("Cannot convert to u128"),
+            AnyInt::U128(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to u128", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }
 
-impl From<AnyInt> for i8 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for i8 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::I8(v) => v,
-            _ => panic!("Cannot convert to i8"),
+            AnyInt::I8(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to i8", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }
 
-impl From<AnyInt> for i16 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for i16 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::I16(v) => v,
-            _ => panic!("Cannot convert to i16"),
+            AnyInt::I16(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to i16", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }
 
-impl From<AnyInt> for i32 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for i32 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::I32(v) => v,
-            _ => panic!("Cannot convert to i32"),
+            AnyInt::I32(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to i32", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }
 
-impl From<AnyInt> for i64 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for i64 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::I64(v) => v,
-            _ => panic!("Cannot convert to i64"),
+            AnyInt::I64(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to i64", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }
 
-impl From<AnyInt> for i128 {
-    fn from(v: AnyInt) -> Self {
+impl TryFrom<AnyInt> for i128 {
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::I128(v) => v,
-            _ => panic!("Cannot convert to i128"),
+            AnyInt::I128(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to i128", v),
+            ))
         }
     }
+
+    type Error = std::io::Error;
 }

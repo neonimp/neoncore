@@ -9,6 +9,12 @@ repository = "https://github.com/neonimp/neoncore.git"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# lto
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+
 [dependencies]
 byteorder = "1.4.3"
 paste = "1.0.12"
