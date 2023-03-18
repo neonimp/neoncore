@@ -501,6 +501,7 @@ pub fn read_cstr<S: SeekRead>(mut stream: S, maxlen: usize) -> StreamResult<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::streams::AnyInt;
     use crate::streams::read::Endianness::LittleEndian;
 
     const DATA: [u8; 168] = [
@@ -563,6 +564,26 @@ mod tests {
         assert_eq!(
             v,
             vec![0x69735f78616d2f00, 0x5545573722e657a, 0x4b5063eebaa90100]
+        );
+    }
+
+    #[test]
+    fn test_format_req_bytes() {
+        let v = format_required_bytes("@xqqqx");
+        assert_eq!(v, 26);
+    }
+
+    #[test]
+    fn test_read_format() {
+        let stream = std::io::Cursor::new(DATA);
+        let v = read_format(stream, "@qqq").unwrap();
+        assert_eq!(
+            v,
+            vec![
+                AnyInt::U64(0x69735f78616d2f00),
+                AnyInt::U64(0x5545573722e657a),
+                AnyInt::U64(0x4b5063eebaa90100)
+                ]
         );
     }
 }
