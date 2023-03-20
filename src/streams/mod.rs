@@ -4,26 +4,34 @@
 use byteorder::WriteBytesExt;
 use std::io::{Read, Seek, Write};
 
-pub mod write;
 pub mod read;
+pub mod write;
 
 pub trait SeekRead: Read + Seek {}
 pub trait SeekWrite: Write + Seek {}
 pub trait SeekReadWrite: Read + Write + Seek {}
+
+pub trait LPType<T, R: ?Sized> {
+    fn lpwidth(&self) -> &LPWidth;
+    fn lpendian(&self) -> &Endianness;
+    fn set_endian(&mut self, endianness: Endianness);
+    fn lp(&self) -> usize;
+    fn val(&self) -> &R;
+}
 
 impl<T: Read + Seek> SeekRead for T {}
 impl<T: Write + Seek> SeekWrite for T {}
 impl<T: Read + Write + Seek> SeekReadWrite for T {}
 
 /// The endianness of a stream
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
 pub enum Endianness {
     LittleEndian,
     BigEndian,
 }
 
 /// The width of a length prefix for lp family functions
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
 pub enum LPWidth {
     LP8,
     LP16,
@@ -48,6 +56,161 @@ impl LPWidth {
             LPWidth::LP32 => len <= u32::MAX as usize,
             LPWidth::LP64 => len <= u64::MAX as usize,
         }
+    }
+}
+
+/// Length prefixed String
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LPString {
+    lpwidth: LPWidth,
+    lpendian: Endianness,
+    lp: usize,
+    val: String,
+}
+
+impl LPType<String, str> for LPString {
+    fn lpwidth(&self) -> &LPWidth {
+        &self.lpwidth
+    }
+
+    fn lpendian(&self) -> &Endianness {
+        &self.lpendian
+    }
+
+    fn set_endian(&mut self, endianness: Endianness) {
+        self.lpendian = endianness;
+    }
+
+    fn lp(&self) -> usize {
+        self.lp
+    }
+
+    fn val(&self) -> &str {
+        &self.val
+    }
+}
+
+impl From<String> for LPString {
+    fn from(s: String) -> Self {
+        LPString {
+            lpwidth: LPWidth::LP32,
+            lpendian: Endianness::LittleEndian,
+            lp: s.len(),
+            val: s,
+        }
+    }
+}
+
+impl From<&str> for LPString {
+    fn from(s: &str) -> Self {
+        LPString {
+            lpwidth: LPWidth::LP32,
+            lpendian: Endianness::LittleEndian,
+            lp: s.len(),
+            val: s.to_string(),
+        }
+    }
+}
+
+impl From<LPString> for String {
+    fn from(s: LPString) -> Self {
+        s.val
+    }
+}
+
+/// Length prefixed &str
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LPStr<'data> {
+    lpwidth: LPWidth,
+    lpendian: Endianness,
+    lp: usize,
+    val: &'data str,
+}
+
+impl<'data> LPType<&str, str> for LPStr<'data> {
+    fn lpwidth(&self) -> &LPWidth {
+        &self.lpwidth
+    }
+
+    fn lpendian(&self) -> &Endianness {
+        &self.lpendian
+    }
+
+    fn set_endian(&mut self, endianness: Endianness) {
+        self.lpendian = endianness;
+    }
+
+    fn lp(&self) -> usize {
+        self.lp
+    }
+
+    fn val(&self) -> &'data str {
+        &self.val
+    }
+}
+
+impl<'data> From<&'data str> for LPStr<'data> {
+    fn from(s: &'data str) -> Self {
+        LPStr {
+            lpwidth: LPWidth::LP32,
+            lpendian: Endianness::LittleEndian,
+            lp: s.len(),
+            val: s,
+        }
+    }
+}
+
+impl<'data> From<LPStr<'data>> for &'data str {
+    fn from(s: LPStr<'data>) -> Self {
+        s.val
+    }
+}
+
+/// Length prefixed buffer
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LPBuffer<'data> {
+    lpwidth: LPWidth,
+    lpendian: Endianness,
+    lp: usize,
+    val: &'data [u8],
+}
+
+impl<'data> LPType<&[u8], [u8]> for LPBuffer<'data> {
+    fn lpwidth(&self) -> &LPWidth {
+        &self.lpwidth
+    }
+
+    fn lpendian(&self) -> &Endianness {
+        &self.lpendian
+    }
+
+    fn set_endian(&mut self, endianness: Endianness) {
+        self.lpendian = endianness;
+    }
+
+    fn lp(&self) -> usize {
+        self.lp
+    }
+
+    fn val(&self) -> &[u8] {
+        &self.val
+    }
+}
+
+impl<'data> From<&'data [u8]> for LPBuffer<'data> {
+    fn from(s: &'data [u8]) -> Self {
+        LPBuffer {
+            lpwidth: LPWidth::LP32,
+            lpendian: Endianness::LittleEndian,
+            lp: s.len(),
+            val: s,
+        }
+    }
+}
+
+impl<'data> From<LPBuffer<'data>> for &'data [u8] {
+    fn from(s: LPBuffer<'data>) -> Self {
+        s.val
     }
 }
 
@@ -192,7 +355,7 @@ impl TryFrom<AnyInt> for u8 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to u8", v),
-            ))
+            )),
         }
     }
 
@@ -206,7 +369,7 @@ impl TryFrom<AnyInt> for u16 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to u16", v),
-            ))
+            )),
         }
     }
 
@@ -220,7 +383,7 @@ impl TryFrom<AnyInt> for u32 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to u32", v),
-            ))
+            )),
         }
     }
 
@@ -234,7 +397,7 @@ impl TryFrom<AnyInt> for u64 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to u64", v),
-            ))
+            )),
         }
     }
 
@@ -248,7 +411,7 @@ impl TryFrom<AnyInt> for u128 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to u128", v),
-            ))
+            )),
         }
     }
 
@@ -262,7 +425,7 @@ impl TryFrom<AnyInt> for i8 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to i8", v),
-            ))
+            )),
         }
     }
 
@@ -276,7 +439,7 @@ impl TryFrom<AnyInt> for i16 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to i16", v),
-            ))
+            )),
         }
     }
 
@@ -290,7 +453,7 @@ impl TryFrom<AnyInt> for i32 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to i32", v),
-            ))
+            )),
         }
     }
 
@@ -304,7 +467,7 @@ impl TryFrom<AnyInt> for i64 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to i64", v),
-            ))
+            )),
         }
     }
 
@@ -318,7 +481,7 @@ impl TryFrom<AnyInt> for i128 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to i128", v),
-            ))
+            )),
         }
     }
 
