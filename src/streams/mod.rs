@@ -61,6 +61,7 @@ impl LPWidth {
 
 /// Length prefixed String
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
 pub struct LPString {
     lpwidth: LPWidth,
     lpendian: Endianness,
@@ -120,6 +121,7 @@ impl From<LPString> for String {
 
 /// Length prefixed &str
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
 pub struct LPStr<'data> {
     lpwidth: LPWidth,
     lpendian: Endianness,
@@ -168,6 +170,7 @@ impl<'data> From<LPStr<'data>> for &'data str {
 
 /// Length prefixed buffer
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
 pub struct LPBuffer<'data> {
     lpwidth: LPWidth,
     lpendian: Endianness,
