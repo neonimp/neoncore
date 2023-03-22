@@ -3,7 +3,7 @@
 
 use crate::streams::{AnyInt, Endianness, SeekRead};
 use byteorder::ReadBytesExt;
-use std::io::{Error, ErrorKind, SeekFrom};
+use std::io::{Error, ErrorKind, SeekFrom, Read};
 
 use super::LPWidth;
 
@@ -299,8 +299,7 @@ pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
 
 /// How many input bytes are required at least to read the given format string.
 ///
-/// # Arguments
-/// * `format`: The format string.
+/// # Format string
 ///
 /// | Char | Width | Meaning             |
 /// |------|-------|---------------------|
@@ -317,7 +316,7 @@ pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
 ///
 /// # Returns
 /// The number of bytes required to read the given format string with [`read_format`].
-pub fn format_required_bytes(format: &str) -> u64 {
+pub fn pattern_required_bytes(format: &str) -> u64 {
     let mut bytes = 0;
     let mut chars = format.chars();
     while let Some(c) = chars.next() {
@@ -346,7 +345,7 @@ pub fn format_required_bytes(format: &str) -> u64 {
 ///
 /// # Returns
 /// a `Vec<AnyInt>` containing the read values.
-pub fn read_format<S: SeekRead>(mut stream: S, format: &str) -> StreamResult<Vec<AnyInt>> {
+pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<AnyInt>> {
     let mut values = Vec::new();
     let mut chars = format.chars();
     let endianess = match chars.next() {
@@ -362,7 +361,8 @@ pub fn read_format<S: SeekRead>(mut stream: S, format: &str) -> StreamResult<Vec
 
     while let Some(c) = chars.next() {
         if c == 'x' {
-            stream.seek(SeekFrom::Current(1))?;
+            // skip a byte
+            stream.read_u8()?;
             continue;
         }
         let v = match endianess {
@@ -569,14 +569,14 @@ mod tests {
 
     #[test]
     fn test_format_req_bytes() {
-        let v = format_required_bytes("@xqqqx");
+        let v = pattern_required_bytes("@xqqqx");
         assert_eq!(v, 26);
     }
 
     #[test]
     fn test_read_format() {
         let stream = std::io::Cursor::new(DATA);
-        let v = read_format(stream, "@qqq").unwrap();
+        let v = read_pattern(stream, "@qqq").unwrap();
         assert_eq!(
             v,
             vec![
