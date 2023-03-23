@@ -1,6 +1,6 @@
 [package]
 name = "neoncore"
-version = "3.0.0"
+version = "4.0.0"
 authors = ["Matheus Xavier <mxavier@neonlayer.com>"]
 license = "BSD-3-Clause"
 description = "Core utility library for working with binary DATA streams."
@@ -13,7 +13,6 @@ repository = "https://github.com/neonimp/neoncore.git"
 [profile.release]
 lto = true
 opt-level = 3
-codegen-units = 1
 
 [dependencies]
 byteorder = "1.4.3"

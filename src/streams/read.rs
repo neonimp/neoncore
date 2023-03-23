@@ -3,7 +3,7 @@
 
 use crate::streams::{AnyInt, Endianness, SeekRead};
 use byteorder::ReadBytesExt;
-use std::io::{Error, ErrorKind, SeekFrom, Read};
+use std::io::{Error, ErrorKind, Read, SeekFrom};
 
 use super::LPWidth;
 
@@ -173,130 +173,6 @@ pub fn find_all_u64_signatures<S: SeekRead>(
     }
 }
 
-/// Reads `n` consecutive `u16` from `stream` while advancing the stream `n * 2` bytes.
-///
-/// # Arguments
-///
-/// * `stream`: The stream to read from.
-/// * `n`: The number of `u16` to read.
-/// * `endianess`: The endianness of the `u16`s in the stream.
-///
-/// returns: vector of the read `u16`s in order.
-///
-/// # Example
-///
-/// ```rust
-/// use std::io::Cursor;
-/// use neoncore::streams::read::{Endianness, read_n_u16};
-///
-/// let mut stream = Cursor::new(vec![0x01, 0x00, 0x02, 0x00, 0x03, 0x00]);
-/// let v = read_n_u16(&mut stream, 3, Endianness::LittleEndian).unwrap();
-/// assert_eq!(v, vec![1, 2, 3]);
-/// ```
-pub fn read_n_u16<S: SeekRead>(
-    mut stream: S,
-    n: u64,
-    endianess: Endianness,
-) -> StreamResult<Vec<u16>> {
-    let mut vl = Vec::with_capacity(n as usize);
-    for _ in 0..n {
-        let v = match endianess {
-            Endianness::LittleEndian => stream.read_u16::<byteorder::LittleEndian>()?,
-            Endianness::BigEndian => stream.read_u16::<byteorder::BigEndian>()?,
-        };
-        vl.push(v);
-    }
-    Ok(vl)
-}
-
-/// Reads `n` consecutive `u32` from `stream` while advancing the stream `n * 4` bytes.
-///
-/// # Arguments
-///
-/// * `stream`: The stream to read from.
-/// * `n`: The number of `u32` to read.
-/// * `endianess`: The endianness of the `u32`s in the stream.
-///
-/// returns: vector of the read `u32`s in order.
-///
-/// # Example
-///
-/// ```rust
-/// use std::io::Cursor;
-/// use neoncore::streams::read::{Endianness, read_n_u32};
-///
-/// let mut stream = Cursor::new(vec![0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]);
-/// let v = read_n_u32(&mut stream, 3, Endianness::LittleEndian).unwrap();
-/// assert_eq!(v, vec![1, 2, 3]);
-/// ```
-pub fn read_n_u32<S: SeekRead>(
-    mut stream: S,
-    n: u64,
-    endianess: Endianness,
-) -> StreamResult<Vec<u32>> {
-    let mut vl = Vec::with_capacity(n as usize);
-    for _ in 0..n {
-        let v = match endianess {
-            Endianness::LittleEndian => stream.read_u32::<byteorder::LittleEndian>()?,
-            Endianness::BigEndian => stream.read_u32::<byteorder::BigEndian>()?,
-        };
-        vl.push(v);
-    }
-    Ok(vl)
-}
-
-/// Reads `n` consecutive `u64` from `stream` while advancing the stream `n * 8` bytes.
-///
-/// # Arguments
-///
-/// * `stream`: The stream to read from.
-/// * `n`: The number of `u64` to read.
-/// * `endianess`: The endianness of the `u64`s in the stream.
-///
-/// returns: vector of the read `u64`s in order.
-///
-/// # Example
-///
-/// ```rust
-/// use std::io::Cursor;
-/// use neoncore::streams::read::{Endianness, read_n_u64};
-///
-/// let mut stream = Cursor::new(b"\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00");
-/// let v = read_n_u64(&mut stream, 3, Endianness::LittleEndian).unwrap();
-/// assert_eq!(v, vec![1, 2, 3]);
-/// ```
-pub fn read_n_u64<S: SeekRead>(
-    mut stream: S,
-    n: u64,
-    endianess: Endianness,
-) -> StreamResult<Vec<u64>> {
-    let mut vl = Vec::with_capacity(n as usize);
-    for _ in 0..n {
-        let v = match endianess {
-            Endianness::LittleEndian => stream.read_u64::<byteorder::LittleEndian>()?,
-            Endianness::BigEndian => stream.read_u64::<byteorder::BigEndian>()?,
-        };
-        vl.push(v);
-    }
-    Ok(vl)
-}
-
-pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
-    let mut vl = Vec::with_capacity(n as usize);
-    let mut byte = [0; 1];
-    for _ in 0..n {
-        let read = stream.read(&mut byte)?;
-        if read != 1 {
-            return Err(Error::new(
-                ErrorKind::UnexpectedEof,
-                "Unexpected EOF while reading bytes",
-            ));
-        }
-        vl.push(byte[0]);
-    }
-    Ok(vl)
-}
-
 /// How many input bytes are required at least to read the given format string.
 ///
 /// # Format string
@@ -306,6 +182,8 @@ pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
 /// | !    | -     | BigEndian           |
 /// | @    | -     | Little endian       |
 /// | x    | 1     | skips a single byte |
+/// | c    | 1     | unsigned            |
+/// | C    | 1     | signed              |
 /// | h    | 2     | unsigned            |
 /// | H    | 2     | signed              |
 /// | w    | 4     | unsigned            |
@@ -315,7 +193,7 @@ pub fn read_bytes<S: SeekRead>(mut stream: S, n: u64) -> StreamResult<Vec<u8>> {
 /// | P    | usize | Platform dependent  |
 ///
 /// # Returns
-/// The number of bytes required to read the given format string with [`read_format`].
+/// The number of bytes required to read the given format string with [`read_pattern`].
 pub fn pattern_required_bytes(format: &str) -> u64 {
     let mut bytes = 0;
     let mut chars = format.chars();
@@ -325,6 +203,7 @@ pub fn pattern_required_bytes(format: &str) -> u64 {
             '!' | '@' => {}
             // skip
             'x' => bytes += 1,
+            'c' | 'C' => bytes += 1,
             'h' | 'H' => bytes += 2,
             'w' | 'W' => bytes += 4,
             'q' | 'Q' => bytes += 8,
@@ -360,11 +239,22 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
     };
 
     while let Some(c) = chars.next() {
+        // skip a byte
         if c == 'x' {
-            // skip a byte
             stream.read_u8()?;
             continue;
         }
+
+        // read a byte
+        if c == 'c' {
+            values.push(AnyInt::U8(stream.read_u8()?));
+            continue;
+        } else if c == 'C' {
+            values.push(AnyInt::I8(stream.read_i8()?));
+            continue;
+        }
+
+        // the rest of the format characters require at least 2 bytes
         let v = match endianess {
             Endianness::BigEndian => match c {
                 'h' => AnyInt::U16(stream.read_u16::<byteorder::BigEndian>()?),
@@ -501,8 +391,8 @@ pub fn read_cstr<S: SeekRead>(mut stream: S, maxlen: usize) -> StreamResult<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::streams::AnyInt;
     use crate::streams::read::Endianness::LittleEndian;
+    use crate::streams::AnyInt;
 
     const DATA: [u8; 168] = [
         0x00, 0x2F, 0x6D, 0x61, 0x78, 0x5F, 0x73, 0x69, 0x7A, 0x65, 0x2E, 0x72, 0x73, 0x55, 0x54,
@@ -544,37 +434,13 @@ mod tests {
     }
 
     #[test]
-    fn test_read_n_u16() {
-        let stream = std::io::Cursor::new(DATA);
-        let v = read_n_u16(stream, 3, LittleEndian).unwrap();
-        assert_eq!(v, vec![0x2F00, 0x616D, 0x5F78]);
-    }
-
-    #[test]
-    fn test_read_n_u32() {
-        let stream = std::io::Cursor::new(DATA);
-        let v = read_n_u32(stream, 3, LittleEndian).unwrap();
-        assert_eq!(v, vec![0x616D2F00, 0x69735F78, 0x722E657A]);
-    }
-
-    #[test]
-    fn test_read_n_u64() {
-        let stream = std::io::Cursor::new(DATA);
-        let v = read_n_u64(stream, 3, LittleEndian).unwrap();
-        assert_eq!(
-            v,
-            vec![0x69735f78616d2f00, 0x5545573722e657a, 0x4b5063eebaa90100]
-        );
-    }
-
-    #[test]
-    fn test_format_req_bytes() {
+    fn test_pattern_req_bytes() {
         let v = pattern_required_bytes("@xqqqx");
         assert_eq!(v, 26);
     }
 
     #[test]
-    fn test_read_format() {
+    fn test_read_pattern() {
         let stream = std::io::Cursor::new(DATA);
         let v = read_pattern(stream, "@qqq").unwrap();
         assert_eq!(
@@ -583,7 +449,7 @@ mod tests {
                 AnyInt::U64(0x69735f78616d2f00),
                 AnyInt::U64(0x5545573722e657a),
                 AnyInt::U64(0x4b5063eebaa90100)
-                ]
+            ]
         );
     }
 }

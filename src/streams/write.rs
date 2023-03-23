@@ -1,5 +1,7 @@
 //! Utilities for writing to streams of binary data
 
+use std::io::Write;
+
 use crate::streams::SeekWrite;
 use byteorder::WriteBytesExt;
 
@@ -9,39 +11,8 @@ pub trait SizedBuffer: AsRef<[u8]> + AsMut<[u8]> + Default + Clone + Sized {}
 
 impl<T: AsRef<[u8]> + AsMut<[u8]> + Default + Clone + Sized> SizedBuffer for T {}
 
-/// Write a series of bytes to a stream
-///
-/// # Arguments
-/// * `stream` - The stream to write to
-/// * `bytes` - The bytes to write
-///
-/// # Returns
-/// * `Ok(u64)` - The number of bytes written
-/// * `Err(std::io::Error)` - The error encountered while writing
-///
-/// # Example
-///
-/// ```rust
-/// use std::io::Cursor;
-/// use neoncore::streams::write::write_bytes;
-///
-/// let mut cursor = Cursor::new(vec![]);
-/// write_bytes(&mut cursor, b"Hello World").unwrap();
-/// assert_eq!(cursor.into_inner(), b"Hello World");
-/// ```
-pub fn write_bytes<S: SeekWrite, I: SizedBuffer>(
-    mut stream: S,
-    bytes: I,
-) -> Result<u64, std::io::Error> {
-    let mut written = 0;
-    for byte in bytes.as_ref() {
-        stream.write_u8(*byte)?;
-        written += 1;
-    }
-    Ok(written)
-}
-
-pub fn write_values<S: SeekWrite>(
+/// Write a list of `AnyInt`s to a stream
+pub fn write_values<S: Write>(
     mut stream: S,
     values: &[AnyInt],
     endianess: Endianness,
@@ -51,15 +22,15 @@ pub fn write_values<S: SeekWrite>(
         match endianess {
             Endianness::LittleEndian => {
                 let vb = v.to_bytes_le();
-                written += write_bytes(&mut stream, vb)?;
+                written += stream.write(vb.as_ref())?;
             }
             Endianness::BigEndian => {
                 let vb = v.to_bytes_be();
-                written += write_bytes(&mut stream, vb)?;
+                written += stream.write(vb.as_ref())?;
             }
         }
     }
-    Ok(written)
+    Ok(written as u64)
 }
 
 /// Write a lpbuff to a stream
@@ -175,9 +146,38 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
-    fn test_write_bytes() {
-        let mut cursor = Cursor::new(vec![]);
-        write_bytes(&mut cursor, *b"Hello World").unwrap();
-        assert_eq!(cursor.into_inner(), b"Hello World");
+    fn test_write_values() {
+        let mut buf = [0u8; 8];
+        let mut stream = Cursor::new(&mut buf[..]);
+        let values = [AnyInt::U32(0x12345678u32), AnyInt::U32(0x9abcdef0u32)];
+        write_values(&mut stream, &values, Endianness::LittleEndian).unwrap();
+        assert_eq!(buf, [0x78, 0x56, 0x34, 0x12, 0xf0, 0xde, 0xbc, 0x9a]);
+    }
+
+    #[test]
+    fn test_write_lpbuf() {
+        let mut buf = [0u8; 8];
+        let mut stream = Cursor::new(&mut buf[..]);
+        let bytes = [0x12, 0x34, 0x56, 0x78];
+        write_lpbuf(&mut stream, LPWidth::LP32, Endianness::LittleEndian, &bytes).unwrap();
+        assert_eq!(buf, [0x04, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78]);
+    }
+
+    #[test]
+    fn test_write_lpstr() {
+        let mut buf = [0u8; 8];
+        let mut stream = Cursor::new(&mut buf[..]);
+        let string = "test";
+        write_lpstr(&mut stream, LPWidth::LP32, Endianness::LittleEndian, string).unwrap();
+        assert_eq!(buf, [0x04, 0x00, 0x00, 0x00, 0x74, 0x65, 0x73, 0x74]);
+    }
+
+    #[test]
+    fn test_write_cstr() {
+        let mut buf = [0u8; 8];
+        let mut stream = Cursor::new(&mut buf[..]);
+        let string = "test";
+        write_cstr(&mut stream, string).unwrap();
+        assert_eq!(buf, [0x74, 0x65, 0x73, 0x74, 0x00, 0x00, 0x00, 0x00]);
     }
 }

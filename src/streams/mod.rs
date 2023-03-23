@@ -490,3 +490,127 @@ impl TryFrom<AnyInt> for i128 {
 
     type Error = std::io::Error;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_anyint() {
+        let v: AnyInt = 1u8.into();
+        assert_eq!(v, AnyInt::U8(1));
+        let v: AnyInt = 1u16.into();
+        assert_eq!(v, AnyInt::U16(1));
+        let v: AnyInt = 1u32.into();
+        assert_eq!(v, AnyInt::U32(1));
+        let v: AnyInt = 1u64.into();
+        assert_eq!(v, AnyInt::U64(1));
+        let v: AnyInt = 1u128.into();
+        assert_eq!(v, AnyInt::U128(1));
+        let v: AnyInt = 1i8.into();
+        assert_eq!(v, AnyInt::I8(1));
+        let v: AnyInt = 1i16.into();
+        assert_eq!(v, AnyInt::I16(1));
+        let v: AnyInt = 1i32.into();
+        assert_eq!(v, AnyInt::I32(1));
+        let v: AnyInt = 1i64.into();
+        assert_eq!(v, AnyInt::I64(1));
+        let v: AnyInt = 1i128.into();
+        assert_eq!(v, AnyInt::I128(1));
+    }
+
+    #[test]
+    fn test_try_from() {
+        let v: AnyInt = 1u8.into();
+        let v: u8 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+        let v: AnyInt = 1u16.into();
+        let v: u16 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+        let v: AnyInt = 1u32.into();
+        let v: u32 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+        let v: AnyInt = 1u64.into();
+        let v: u64 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+        let v: AnyInt = 1u128.into();
+        let v: u128 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+        let v: AnyInt = 1i8.into();
+        let v: i8 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+        let v: AnyInt = 1i16.into();
+        let v: i16 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+        let v: AnyInt = 1i32.into();
+        let v: i32 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+        let v: AnyInt = 1i64.into();
+        let v: i64 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+        let v: AnyInt = 1i128.into();
+        let v: i128 = v.try_into().unwrap();
+        assert_eq!(v, 1);
+    }
+
+    #[test]
+    fn test_try_from_error_case() {
+        let v: AnyInt = 1u8.into();
+        let v: Result<u16, _> = v.try_into();
+        assert!(v.is_err());
+        let v: AnyInt = 1u16.into();
+        let v: Result<u32, _> = v.try_into();
+        assert!(v.is_err());
+        let v: AnyInt = 1u32.into();
+        let v: Result<u64, _> = v.try_into();
+        assert!(v.is_err());
+        let v: AnyInt = 1u64.into();
+        let v: Result<u128, _> = v.try_into();
+        assert!(v.is_err());
+        let v: AnyInt = 1u128.into();
+        let v: Result<u8, _> = v.try_into();
+        assert!(v.is_err());
+        let v: AnyInt = 1i8.into();
+        let v: Result<i16, _> = v.try_into();
+        assert!(v.is_err());
+        let v: AnyInt = 1i16.into();
+        let v: Result<i32, _> = v.try_into();
+        assert!(v.is_err());
+        let v: AnyInt = 1i32.into();
+        let v: Result<i64, _> = v.try_into();
+        assert!(v.is_err());
+        let v: AnyInt = 1i64.into();
+        let v: Result<i128, _> = v.try_into();
+        assert!(v.is_err());
+        let v: AnyInt = 1i128.into();
+        let v: Result<i8, _> = v.try_into();
+        assert!(v.is_err());
+    }
+
+    #[test]
+    fn test_lpwidth_size() {
+        let v = LPWidth::LP8;
+        assert_eq!(v.size(), 1);
+        let v = LPWidth::LP16;
+        assert_eq!(v.size(), 2);
+        let v = LPWidth::LP32;
+        assert_eq!(v.size(), 4);
+        let v = LPWidth::LP64;
+        assert_eq!(v.size(), 8);
+    }
+
+    #[test]
+    fn test_usize_fits() {
+        assert!(LPWidth::usize_fits(LPWidth::LP8, 0));
+        assert!(LPWidth::usize_fits(LPWidth::LP8, 255));
+        assert!(!LPWidth::usize_fits(LPWidth::LP8, 256));
+        assert!(LPWidth::usize_fits(LPWidth::LP16, 0));
+        assert!(LPWidth::usize_fits(LPWidth::LP16, 65535));
+        assert!(!LPWidth::usize_fits(LPWidth::LP16, 65536));
+        assert!(LPWidth::usize_fits(LPWidth::LP32, 0));
+        assert!(LPWidth::usize_fits(LPWidth::LP32, 4294967295));
+        assert!(!LPWidth::usize_fits(LPWidth::LP32, 4294967296));
+        assert!(LPWidth::usize_fits(LPWidth::LP64, 0));
+        assert!(LPWidth::usize_fits(LPWidth::LP64, 18446744073709551615));
+    }
+}
