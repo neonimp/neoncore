@@ -7,19 +7,105 @@ use byteorder::WriteBytesExt;
 
 use super::{AnyInt, Endianness, LPWidth};
 
-pub trait SizedBuffer: AsRef<[u8]> + AsMut<[u8]> + Default + Clone + Sized {}
+// TODO: Constraint on K: Serialize, V: Serialize
+/// Trait representing any map type that can be written to a stream
+pub trait MapType<'a, K: 'a, V: 'a>: 'a {
+    type Iter: Iterator<Item = (&'a K, &'a V)>;
+    fn get(&self, key: &K) -> Option<&V>;
+    fn get_mut(&mut self, key: &K) -> Option<&mut V>;
+    fn insert(&mut self, key: K, value: V) -> Option<V>;
+    fn remove(&mut self, key: &K) -> Option<V>;
+    fn keys(&self) -> Vec<&K>;
+    fn values(&self) -> Vec<&V>;
+    fn len(&self) -> usize;
+    fn iter(&'a self) -> Self::Iter;
+}
 
-impl<T: AsRef<[u8]> + AsMut<[u8]> + Default + Clone + Sized> SizedBuffer for T {}
+impl<'a, K: 'a, V: 'a> MapType<'a, K, V> for std::collections::HashMap<K, V>
+where
+    K: std::cmp::Eq + std::hash::Hash,
+{
+    type Iter = std::collections::hash_map::Iter<'a, K, V>;
+    fn get(&self, key: &K) -> Option<&V> {
+        self.get(key)
+    }
+
+    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        self.get_mut(key)
+    }
+
+    fn insert(&mut self, key: K, value: V) -> Option<V> {
+        self.insert(key, value)
+    }
+
+    fn remove(&mut self, key: &K) -> Option<V> {
+        self.remove(key)
+    }
+
+    fn keys(&self) -> Vec<&K> {
+        self.keys().collect()
+    }
+
+    fn values(&self) -> Vec<&V> {
+        self.values().collect()
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn iter(&'a self) -> Self::Iter {
+        self.iter()
+    }
+}
+
+impl<'a, K: 'a, V: 'a> MapType<'a, K, V> for std::collections::BTreeMap<K, V>
+where
+    K: std::cmp::Ord,
+{
+    type Iter = std::collections::btree_map::Iter<'a, K, V>;
+    fn get(&self, key: &K) -> Option<&V> {
+        self.get(key)
+    }
+
+    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        self.get_mut(key)
+    }
+
+    fn insert(&mut self, key: K, value: V) -> Option<V> {
+        self.insert(key, value)
+    }
+
+    fn remove(&mut self, key: &K) -> Option<V> {
+        self.remove(key)
+    }
+
+    fn keys(&self) -> Vec<&K> {
+        self.keys().collect()
+    }
+
+    fn values(&self) -> Vec<&V> {
+        self.values().collect()
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn iter(&'a self) -> Self::Iter {
+        self.iter()
+    }
+}
 
 /// Write a list of `AnyInt`s to a stream
 pub fn write_values<S: Write>(
     mut stream: S,
     values: &[AnyInt],
-    endianess: Endianness,
+    endianness: Endianness,
 ) -> Result<u64, std::io::Error> {
     let mut written = 0;
     for v in values {
-        match endianess {
+        match endianness {
             Endianness::LittleEndian => {
                 let vb = v.to_bytes_le();
                 written += stream.write(vb.as_ref())?;
@@ -33,7 +119,7 @@ pub fn write_values<S: Write>(
     Ok(written as u64)
 }
 
-/// Write a lpbuff to a stream
+/// Write a lpbuf to a stream
 ///
 /// # Arguments
 /// * `stream` - The stream to write to
@@ -44,7 +130,7 @@ pub fn write_values<S: Write>(
 /// # Returns
 /// * `Ok(u64)` - The number of bytes written
 /// * `Err(std::io::Error)` - The error encountered while writing
-pub fn write_lpbuf<S: SeekWrite>(
+pub fn write_lpbuf<S: Write>(
     mut stream: S,
     lptype: LPWidth,
     lpend: Endianness,
@@ -102,7 +188,7 @@ pub fn write_lpbuf<S: SeekWrite>(
     Ok(written)
 }
 
-/// Write a string to a stream as a lpbuff
+/// Write a string to a stream as a lpbuf
 ///
 /// # Arguments
 /// * `stream` - The stream to write to
@@ -116,7 +202,7 @@ pub fn write_lpbuf<S: SeekWrite>(
 ///
 /// # Note
 /// This function is a wrapper around `write_lpbuf` that converts the string to bytes
-pub fn write_lpstr<S: SeekWrite>(
+pub fn write_lpstr<S: Write>(
     mut stream: S,
     lptype: LPWidth,
     lpend: Endianness,
@@ -138,6 +224,30 @@ pub fn write_cstr<S: SeekWrite>(mut stream: S, string: &str) -> Result<u64, std:
     stream.write_all(string.as_bytes())?;
     stream.write_u8(0)?;
     Ok(string.len() as u64 + 1)
+}
+
+pub fn write_map<'a>(
+    mut stream: impl Write,
+    endianness: Endianness,
+    map: &'a impl MapType<'a, String, AnyInt>,
+    lpwidth: LPWidth,
+) -> Result<u64, std::io::Error> {
+    let mut written = 0;
+    for (k, v) in map.iter() {
+        match endianness {
+            Endianness::LittleEndian => {
+                written += write_lpstr(&mut stream, lpwidth, endianness, k)?;
+                let vb = v.to_bytes_le();
+                written += stream.write(vb.as_ref())? as u64;
+            }
+            Endianness::BigEndian => {
+                written += write_lpstr(&mut stream, lpwidth, endianness, k)?;
+                let vb = v.to_bytes_be();
+                written += stream.write(vb.as_ref())? as u64;
+            }
+        }
+    }
+    Ok(written as u64)
 }
 
 #[cfg(test)]

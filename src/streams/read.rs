@@ -227,7 +227,7 @@ pub fn pattern_required_bytes(format: &str) -> u64 {
 pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<AnyInt>> {
     let mut values = Vec::new();
     let mut chars = format.chars();
-    let endianess = match chars.next() {
+    let endianness = match chars.next() {
         Some('!') => Endianness::BigEndian,
         Some('@') => Endianness::LittleEndian,
         _ => {
@@ -255,7 +255,7 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
         }
 
         // the rest of the format characters require at least 2 bytes
-        let v = match endianess {
+        let v = match endianness {
             Endianness::BigEndian => match c {
                 'h' => AnyInt::U16(stream.read_u16::<byteorder::BigEndian>()?),
                 'w' => AnyInt::U32(stream.read_u32::<byteorder::BigEndian>()?),
@@ -290,12 +290,12 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
     Ok(values)
 }
 
-/// Read a lenght prefixed buffer from the stream.
+/// Read a length prefixed buffer from the stream.
 ///
 /// # Arguments
 /// * `stream`: The stream to read from.
-/// * `lptype`: The width of the lenght prefix.
-/// * `lpend`: The endianness of the lenght prefix.
+/// * `lptype`: The width of the length prefix.
+/// * `lpend`: The endianness of the length prefix.
 ///
 /// # Returns
 /// The read buffer.
@@ -331,12 +331,12 @@ pub fn read_lpbuf<S: SeekRead>(
     Ok(buf)
 }
 
-/// Read a lenght prefixed string from the stream.
+/// Read a length prefixed string from the stream.
 ///
 /// # Arguments
 /// * `stream`: The stream to read from.
-/// * `lptype`: The width of the lenght prefix.
-/// * `lpend`: The endianness of the lenght prefix.
+/// * `lptype`: The width of the length prefix.
+/// * `lpend`: The endianness of the length prefix.
 ///
 /// # Returns
 /// The read string.
