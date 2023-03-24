@@ -2,7 +2,7 @@
 //! of binary data see [`mod@read`] and [`mod@write`] for more information.
 
 use byteorder::WriteBytesExt;
-use std::io::{Read, Seek, Write};
+use std::io::{Cursor, Read, Seek, Write};
 
 pub mod read;
 pub mod write;
@@ -221,6 +221,7 @@ impl<'data> From<LPBuffer<'data>> for &'data [u8] {
 /// Trait representing any map type that can be written to a stream
 pub trait MapType<'a, K: 'a, V: 'a>: 'a {
     type Iter: Iterator<Item = (&'a K, &'a V)>;
+    fn new() -> Self;
     fn get(&self, key: &K) -> Option<&V>;
     fn get_mut(&mut self, key: &K) -> Option<&mut V>;
     fn insert(&mut self, key: K, value: V) -> Option<V>;
@@ -236,6 +237,11 @@ where
     K: std::cmp::Eq + std::hash::Hash,
 {
     type Iter = std::collections::hash_map::Iter<'a, K, V>;
+
+    fn new() -> Self {
+        Self::new()
+    }
+
     fn get(&self, key: &K) -> Option<&V> {
         self.get(key)
     }
@@ -274,6 +280,11 @@ where
     K: std::cmp::Ord,
 {
     type Iter = std::collections::btree_map::Iter<'a, K, V>;
+
+    fn new() -> Self {
+        Self::new()
+    }
+
     fn get(&self, key: &K) -> Option<&V> {
         self.get(key)
     }
@@ -313,11 +324,13 @@ pub enum AnyInt {
     U8(u8),
     U16(u16),
     U32(u32),
+    U48(u64),
     U64(u64),
     U128(u128),
     I8(i8),
     I16(i16),
     I32(i32),
+    I48(i64),
     I64(i64),
     I128(i128),
 }
@@ -331,11 +344,23 @@ impl AnyInt {
             AnyInt::U8(v) => writer.write_u8(*v),
             AnyInt::U16(v) => writer.write_u16::<byteorder::LittleEndian>(*v),
             AnyInt::U32(v) => writer.write_u32::<byteorder::LittleEndian>(*v),
+            AnyInt::U48(v) => {
+                writer
+                    .write(AnyInt::write_u48(*v, Endianness::LittleEndian).as_slice())
+                    .unwrap();
+                Ok(())
+            }
             AnyInt::U64(v) => writer.write_u64::<byteorder::LittleEndian>(*v),
             AnyInt::U128(v) => writer.write_u128::<byteorder::LittleEndian>(*v),
             AnyInt::I8(v) => writer.write_i8(*v),
             AnyInt::I16(v) => writer.write_i16::<byteorder::LittleEndian>(*v),
             AnyInt::I32(v) => writer.write_i32::<byteorder::LittleEndian>(*v),
+            AnyInt::I48(v) => {
+                writer
+                    .write(AnyInt::write_i48(*v, Endianness::LittleEndian).as_slice())
+                    .unwrap();
+                Ok(())
+            }
             AnyInt::I64(v) => writer.write_i64::<byteorder::LittleEndian>(*v),
             AnyInt::I128(v) => writer.write_i128::<byteorder::LittleEndian>(*v),
         }
@@ -352,11 +377,23 @@ impl AnyInt {
             AnyInt::U8(v) => writer.write_u8(*v),
             AnyInt::U16(v) => writer.write_u16::<byteorder::BigEndian>(*v),
             AnyInt::U32(v) => writer.write_u32::<byteorder::BigEndian>(*v),
+            AnyInt::U48(v) => {
+                writer
+                    .write(AnyInt::write_u48(*v, Endianness::BigEndian).as_slice())
+                    .unwrap();
+                Ok(())
+            }
             AnyInt::U64(v) => writer.write_u64::<byteorder::BigEndian>(*v),
             AnyInt::U128(v) => writer.write_u128::<byteorder::BigEndian>(*v),
             AnyInt::I8(v) => writer.write_i8(*v),
             AnyInt::I16(v) => writer.write_i16::<byteorder::BigEndian>(*v),
             AnyInt::I32(v) => writer.write_i32::<byteorder::BigEndian>(*v),
+            AnyInt::I48(v) => {
+                writer
+                    .write(AnyInt::write_i48(*v, Endianness::BigEndian).as_slice())
+                    .unwrap();
+                Ok(())
+            }
             AnyInt::I64(v) => writer.write_i64::<byteorder::BigEndian>(*v),
             AnyInt::I128(v) => writer.write_i128::<byteorder::BigEndian>(*v),
         }
@@ -365,19 +402,72 @@ impl AnyInt {
         writer.into_inner()
     }
 
-    fn size(&self) -> usize {
+    /// In memory size of the integer
+    pub fn size(&self) -> usize {
         match self {
             AnyInt::U8(_) => 1,
             AnyInt::U16(_) => 2,
             AnyInt::U32(_) => 4,
+            AnyInt::U48(_) => 8,
             AnyInt::U64(_) => 8,
             AnyInt::U128(_) => 16,
             AnyInt::I8(_) => 1,
             AnyInt::I16(_) => 2,
             AnyInt::I32(_) => 4,
+            AnyInt::I48(_) => 8,
             AnyInt::I64(_) => 8,
             AnyInt::I128(_) => 16,
         }
+    }
+
+    /// Size of the integer when serialized
+    pub fn ser_size(&self) -> usize {
+        match self {
+            AnyInt::U8(_) => 1,
+            AnyInt::U16(_) => 2,
+            AnyInt::U32(_) => 4,
+            AnyInt::U48(_) => 6,
+            AnyInt::U64(_) => 8,
+            AnyInt::U128(_) => 16,
+            AnyInt::I8(_) => 1,
+            AnyInt::I16(_) => 2,
+            AnyInt::I32(_) => 4,
+            AnyInt::I48(_) => 6,
+            AnyInt::I64(_) => 8,
+            AnyInt::I128(_) => 16,
+        }
+    }
+
+    fn write_u48(v: u64, endianness: Endianness) -> Vec<u8> {
+        let mut buf = [0u8; 8];
+        let mut cur = Cursor::new(&mut buf[..]);
+        let ret = match endianness {
+            Endianness::LittleEndian => {
+                cur.write_u64::<byteorder::LittleEndian>(v).unwrap();
+                cur.into_inner()[..6].to_vec()
+            }
+            Endianness::BigEndian => {
+                cur.write_u64::<byteorder::BigEndian>(v).unwrap();
+                cur.into_inner()[2..].to_vec()
+            }
+        };
+        ret
+    }
+
+    fn write_i48(v: i64, endianness: Endianness) -> Vec<u8> {
+        let mut buf = [0u8; 8];
+        let mut cur = Cursor::new(&mut buf[..]);
+        let ret = match endianness {
+            Endianness::LittleEndian => {
+                cur.write_i64::<byteorder::LittleEndian>(v).unwrap();
+                cur.into_inner()[..6].to_vec()
+            }
+            Endianness::BigEndian => {
+                cur.write_i64::<byteorder::BigEndian>(v).unwrap();
+                cur.into_inner()[2..].to_vec()
+            }
+        };
+        ret
     }
 }
 
@@ -486,6 +576,7 @@ impl TryFrom<AnyInt> for u32 {
 impl TryFrom<AnyInt> for u64 {
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
+            AnyInt::U48(v) => Ok(v as u64),
             AnyInt::U64(v) => Ok(v),
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -556,6 +647,7 @@ impl TryFrom<AnyInt> for i32 {
 impl TryFrom<AnyInt> for i64 {
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
+            AnyInt::I48(v) => Ok(v as i64),
             AnyInt::I64(v) => Ok(v),
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,

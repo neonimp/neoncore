@@ -144,6 +144,8 @@ pub fn write_map<'a>(
     lpwidth: LPWidth,
 ) -> Result<u64, std::io::Error> {
     let mut written = 0;
+    let entries = AnyInt::U48(map.len() as u64);
+    written += write_values(&mut stream, &[entries], endianness)?;
     for (k, v) in map.iter() {
         match endianness {
             Endianness::LittleEndian => {
@@ -158,7 +160,7 @@ pub fn write_map<'a>(
             }
         }
     }
-    Ok(written as u64)
+    Ok(written)
 }
 
 #[cfg(test)]
