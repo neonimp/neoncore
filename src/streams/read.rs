@@ -5,7 +5,7 @@ use crate::streams::{AnyInt, Endianness, SeekRead};
 use byteorder::ReadBytesExt;
 use std::io::{Error, ErrorKind, Read, SeekFrom};
 
-use super::LPWidth;
+use super::{LPWidth, MapType};
 
 pub type StreamResult<T> = Result<T, Error>;
 

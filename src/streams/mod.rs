@@ -217,6 +217,96 @@ impl<'data> From<LPBuffer<'data>> for &'data [u8] {
     }
 }
 
+// TODO: Constraint on K: Serialize, V: Serialize
+/// Trait representing any map type that can be written to a stream
+pub trait MapType<'a, K: 'a, V: 'a>: 'a {
+    type Iter: Iterator<Item = (&'a K, &'a V)>;
+    fn get(&self, key: &K) -> Option<&V>;
+    fn get_mut(&mut self, key: &K) -> Option<&mut V>;
+    fn insert(&mut self, key: K, value: V) -> Option<V>;
+    fn remove(&mut self, key: &K) -> Option<V>;
+    fn keys(&self) -> Vec<&K>;
+    fn values(&self) -> Vec<&V>;
+    fn len(&self) -> usize;
+    fn iter(&'a self) -> Self::Iter;
+}
+
+impl<'a, K: 'a, V: 'a> MapType<'a, K, V> for std::collections::HashMap<K, V>
+where
+    K: std::cmp::Eq + std::hash::Hash,
+{
+    type Iter = std::collections::hash_map::Iter<'a, K, V>;
+    fn get(&self, key: &K) -> Option<&V> {
+        self.get(key)
+    }
+
+    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        self.get_mut(key)
+    }
+
+    fn insert(&mut self, key: K, value: V) -> Option<V> {
+        self.insert(key, value)
+    }
+
+    fn remove(&mut self, key: &K) -> Option<V> {
+        self.remove(key)
+    }
+
+    fn keys(&self) -> Vec<&K> {
+        self.keys().collect()
+    }
+
+    fn values(&self) -> Vec<&V> {
+        self.values().collect()
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn iter(&'a self) -> Self::Iter {
+        self.iter()
+    }
+}
+
+impl<'a, K: 'a, V: 'a> MapType<'a, K, V> for std::collections::BTreeMap<K, V>
+where
+    K: std::cmp::Ord,
+{
+    type Iter = std::collections::btree_map::Iter<'a, K, V>;
+    fn get(&self, key: &K) -> Option<&V> {
+        self.get(key)
+    }
+
+    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        self.get_mut(key)
+    }
+
+    fn insert(&mut self, key: K, value: V) -> Option<V> {
+        self.insert(key, value)
+    }
+
+    fn remove(&mut self, key: &K) -> Option<V> {
+        self.remove(key)
+    }
+
+    fn keys(&self) -> Vec<&K> {
+        self.keys().collect()
+    }
+
+    fn values(&self) -> Vec<&V> {
+        self.values().collect()
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn iter(&'a self) -> Self::Iter {
+        self.iter()
+    }
+}
+
 /// A type that can hold any integer type
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AnyInt {
