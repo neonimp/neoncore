@@ -4,6 +4,7 @@
 use byteorder::WriteBytesExt;
 use std::io::{Cursor, Read, Seek, Write};
 
+mod helpers;
 pub mod read;
 pub mod write;
 
@@ -147,7 +148,7 @@ impl<'data> LPType<&str, str> for LPStr<'data> {
     }
 
     fn val(&self) -> &'data str {
-        &self.val
+        self.val
     }
 }
 
@@ -196,7 +197,7 @@ impl<'data> LPType<&[u8], [u8]> for LPBuffer<'data> {
     }
 
     fn val(&self) -> &[u8] {
-        &self.val
+        self.val
     }
 }
 
@@ -219,7 +220,11 @@ impl<'data> From<LPBuffer<'data>> for &'data [u8] {
 
 // TODO: Constraint on K: Serialize, V: Serialize
 /// Trait representing any map type that can be written to a stream
-pub trait MapType<'a, K: 'a, V: 'a>: 'a {
+pub trait MapType<'a, K, V>: 'a
+where
+    K: 'a,
+    V: 'a,
+{
     type Iter: Iterator<Item = (&'a K, &'a V)>;
     fn new() -> Self;
     fn get(&self, key: &K) -> Option<&V>;
@@ -229,12 +234,13 @@ pub trait MapType<'a, K: 'a, V: 'a>: 'a {
     fn keys(&self) -> Vec<&K>;
     fn values(&self) -> Vec<&V>;
     fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
     fn iter(&'a self) -> Self::Iter;
 }
 
 impl<'a, K: 'a, V: 'a> MapType<'a, K, V> for std::collections::HashMap<K, V>
 where
-    K: std::cmp::Eq + std::hash::Hash,
+    K: Eq + std::hash::Hash,
 {
     type Iter = std::collections::hash_map::Iter<'a, K, V>;
 
@@ -270,6 +276,10 @@ where
         self.len()
     }
 
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
     fn iter(&'a self) -> Self::Iter {
         self.iter()
     }
@@ -277,7 +287,7 @@ where
 
 impl<'a, K: 'a, V: 'a> MapType<'a, K, V> for std::collections::BTreeMap<K, V>
 where
-    K: std::cmp::Ord,
+    K: Ord,
 {
     type Iter = std::collections::btree_map::Iter<'a, K, V>;
 
@@ -313,6 +323,10 @@ where
         self.len()
     }
 
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
     fn iter(&'a self) -> Self::Iter {
         self.iter()
     }
@@ -338,7 +352,7 @@ pub enum AnyInt {
 impl AnyInt {
     pub fn to_bytes_le(&self) -> Vec<u8> {
         let buf = Vec::with_capacity(self.size());
-        let mut writer = std::io::Cursor::new(buf);
+        let mut writer = Cursor::new(buf);
 
         match self {
             AnyInt::U8(v) => writer.write_u8(*v),
@@ -346,7 +360,7 @@ impl AnyInt {
             AnyInt::U32(v) => writer.write_u32::<byteorder::LittleEndian>(*v),
             AnyInt::U48(v) => {
                 writer
-                    .write(AnyInt::write_u48(*v, Endianness::LittleEndian).as_slice())
+                    .write_all(AnyInt::write_u48(*v, Endianness::LittleEndian).as_slice())
                     .unwrap();
                 Ok(())
             }
@@ -357,7 +371,7 @@ impl AnyInt {
             AnyInt::I32(v) => writer.write_i32::<byteorder::LittleEndian>(*v),
             AnyInt::I48(v) => {
                 writer
-                    .write(AnyInt::write_i48(*v, Endianness::LittleEndian).as_slice())
+                    .write_all(AnyInt::write_i48(*v, Endianness::LittleEndian).as_slice())
                     .unwrap();
                 Ok(())
             }
@@ -371,7 +385,7 @@ impl AnyInt {
 
     pub fn to_bytes_be(&self) -> Vec<u8> {
         let buf = Vec::with_capacity(self.size());
-        let mut writer = std::io::Cursor::new(buf);
+        let mut writer = Cursor::new(buf);
 
         match self {
             AnyInt::U8(v) => writer.write_u8(*v),
@@ -379,7 +393,7 @@ impl AnyInt {
             AnyInt::U32(v) => writer.write_u32::<byteorder::BigEndian>(*v),
             AnyInt::U48(v) => {
                 writer
-                    .write(AnyInt::write_u48(*v, Endianness::BigEndian).as_slice())
+                    .write_all(AnyInt::write_u48(*v, Endianness::BigEndian).as_slice())
                     .unwrap();
                 Ok(())
             }
@@ -390,7 +404,7 @@ impl AnyInt {
             AnyInt::I32(v) => writer.write_i32::<byteorder::BigEndian>(*v),
             AnyInt::I48(v) => {
                 writer
-                    .write(AnyInt::write_i48(*v, Endianness::BigEndian).as_slice())
+                    .write_all(AnyInt::write_i48(*v, Endianness::BigEndian).as_slice())
                     .unwrap();
                 Ok(())
             }
@@ -441,7 +455,7 @@ impl AnyInt {
     fn write_u48(v: u64, endianness: Endianness) -> Vec<u8> {
         let mut buf = [0u8; 8];
         let mut cur = Cursor::new(&mut buf[..]);
-        let ret = match endianness {
+        match endianness {
             Endianness::LittleEndian => {
                 cur.write_u64::<byteorder::LittleEndian>(v).unwrap();
                 cur.into_inner()[..6].to_vec()
@@ -450,14 +464,13 @@ impl AnyInt {
                 cur.write_u64::<byteorder::BigEndian>(v).unwrap();
                 cur.into_inner()[2..].to_vec()
             }
-        };
-        ret
+        }
     }
 
     fn write_i48(v: i64, endianness: Endianness) -> Vec<u8> {
         let mut buf = [0u8; 8];
         let mut cur = Cursor::new(&mut buf[..]);
-        let ret = match endianness {
+        match endianness {
             Endianness::LittleEndian => {
                 cur.write_i64::<byteorder::LittleEndian>(v).unwrap();
                 cur.into_inner()[..6].to_vec()
@@ -466,8 +479,7 @@ impl AnyInt {
                 cur.write_i64::<byteorder::BigEndian>(v).unwrap();
                 cur.into_inner()[2..].to_vec()
             }
-        };
-        ret
+        }
     }
 }
 
@@ -532,6 +544,8 @@ impl From<i128> for AnyInt {
 }
 
 impl TryFrom<AnyInt> for u8 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
             AnyInt::U8(v) => Ok(v),
@@ -541,11 +555,11 @@ impl TryFrom<AnyInt> for u8 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 impl TryFrom<AnyInt> for u16 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
             AnyInt::U16(v) => Ok(v),
@@ -555,11 +569,11 @@ impl TryFrom<AnyInt> for u16 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 impl TryFrom<AnyInt> for u32 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
             AnyInt::U32(v) => Ok(v),
@@ -569,14 +583,14 @@ impl TryFrom<AnyInt> for u32 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 impl TryFrom<AnyInt> for u64 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::U48(v) => Ok(v as u64),
+            AnyInt::U48(v) => Ok(v),
             AnyInt::U64(v) => Ok(v),
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -584,11 +598,11 @@ impl TryFrom<AnyInt> for u64 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 impl TryFrom<AnyInt> for u128 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
             AnyInt::U128(v) => Ok(v),
@@ -598,11 +612,11 @@ impl TryFrom<AnyInt> for u128 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 impl TryFrom<AnyInt> for i8 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
             AnyInt::I8(v) => Ok(v),
@@ -612,11 +626,11 @@ impl TryFrom<AnyInt> for i8 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 impl TryFrom<AnyInt> for i16 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
             AnyInt::I16(v) => Ok(v),
@@ -626,11 +640,11 @@ impl TryFrom<AnyInt> for i16 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 impl TryFrom<AnyInt> for i32 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
             AnyInt::I32(v) => Ok(v),
@@ -640,14 +654,14 @@ impl TryFrom<AnyInt> for i32 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 impl TryFrom<AnyInt> for i64 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
-            AnyInt::I48(v) => Ok(v as i64),
+            AnyInt::I48(v) => Ok(v),
             AnyInt::I64(v) => Ok(v),
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -655,11 +669,11 @@ impl TryFrom<AnyInt> for i64 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 impl TryFrom<AnyInt> for i128 {
+    type Error = std::io::Error;
+
     fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
         match v {
             AnyInt::I128(v) => Ok(v),
@@ -669,8 +683,6 @@ impl TryFrom<AnyInt> for i128 {
             )),
         }
     }
-
-    type Error = std::io::Error;
 }
 
 #[cfg(test)]

@@ -118,7 +118,7 @@ pub fn write_lpstr<S: Write>(
     lpend: Endianness,
     string: &str,
 ) -> Result<u64, std::io::Error> {
-    Ok(write_lpbuf(&mut stream, lptype, lpend, string.as_bytes())?)
+    write_lpbuf(&mut stream, lptype, lpend, string.as_bytes())
 }
 
 /// Write a string to a stream as a null-terminated string
@@ -198,9 +198,9 @@ mod tests {
     #[test]
     fn test_write_cstr() {
         let mut buf = [0u8; 8];
-        let mut stream = Cursor::new(&mut buf[..]);
+        let stream = Cursor::new(&mut buf[..]);
         let string = "test";
-        write_cstr(&mut stream, string).unwrap();
+        write_cstr(stream, string).unwrap();
         assert_eq!(buf, [0x74, 0x65, 0x73, 0x74, 0x00, 0x00, 0x00, 0x00]);
     }
 }

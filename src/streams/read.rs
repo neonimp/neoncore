@@ -1,8 +1,9 @@
 //! Utilities for working with streams.
 //! Like finding a signature in a stream, or reading a struct from a stream.
 
-use crate::streams::{AnyInt, Endianness, SeekRead};
-use byteorder::ReadBytesExt;
+use crate::streams::helpers::read_lpend;
+use crate::streams::{AnyInt, Endianness, MapType, SeekRead};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io::{Error, ErrorKind, Read, SeekFrom};
 
 use super::LPWidth;
@@ -59,8 +60,8 @@ pub fn find_u32_signature<S: SeekRead>(
             stream.seek(SeekFrom::Current(-1))?;
             // found first byte, check if the rest of the signature matches
             let sig_candidate = match endianness {
-                Endianness::LittleEndian => stream.read_u32::<byteorder::LittleEndian>()?,
-                Endianness::BigEndian => stream.read_u32::<byteorder::BigEndian>()?,
+                Endianness::LittleEndian => stream.read_u32::<LittleEndian>()?,
+                Endianness::BigEndian => stream.read_u32::<BigEndian>()?,
             };
             if sig_candidate == sig {
                 break;
@@ -127,8 +128,8 @@ pub fn find_u64_signature<S: SeekRead>(
             stream.seek(SeekFrom::Current(-1))?;
             // found first byte, check if the rest of the signature matches
             let sig_candidate = match endianness {
-                Endianness::LittleEndian => stream.read_u64::<byteorder::LittleEndian>()?,
-                Endianness::BigEndian => stream.read_u64::<byteorder::BigEndian>()?,
+                Endianness::LittleEndian => stream.read_u64::<LittleEndian>()?,
+                Endianness::BigEndian => stream.read_u64::<BigEndian>()?,
             };
             if sig_candidate == sig {
                 break;
@@ -196,8 +197,8 @@ pub fn find_all_u64_signatures<S: SeekRead>(
 /// The number of bytes required to read the given format string with [`read_pattern`].
 pub fn pattern_required_bytes(format: &str) -> u64 {
     let mut bytes = 0;
-    let mut chars = format.chars();
-    while let Some(c) = chars.next() {
+    let chars = format.chars();
+    for c in chars {
         match c {
             // endianness
             '!' | '@' => {}
@@ -220,7 +221,7 @@ pub fn pattern_required_bytes(format: &str) -> u64 {
 /// * `format`: The format string.
 ///
 /// # Format characters
-/// See [`format_required_bytes`] for a list of format characters.
+/// See [`pattern_required_bytes`] for a list of format characters.
 ///
 /// # Returns
 /// a `Vec<AnyInt>` containing the read values.
@@ -238,7 +239,7 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
         }
     };
 
-    while let Some(c) = chars.next() {
+    for c in chars {
         // skip a byte
         if c == 'x' {
             stream.read_u8()?;
@@ -257,12 +258,12 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
         // the rest of the format characters require at least 2 bytes
         let v = match endianness {
             Endianness::BigEndian => match c {
-                'h' => AnyInt::U16(stream.read_u16::<byteorder::BigEndian>()?),
-                'w' => AnyInt::U32(stream.read_u32::<byteorder::BigEndian>()?),
-                'q' => AnyInt::U64(stream.read_u64::<byteorder::BigEndian>()?),
-                'H' => AnyInt::I16(stream.read_i16::<byteorder::BigEndian>()?),
-                'W' => AnyInt::I32(stream.read_i32::<byteorder::BigEndian>()?),
-                'Q' => AnyInt::I64(stream.read_i64::<byteorder::BigEndian>()?),
+                'h' => AnyInt::U16(stream.read_u16::<BigEndian>()?),
+                'w' => AnyInt::U32(stream.read_u32::<BigEndian>()?),
+                'q' => AnyInt::U64(stream.read_u64::<BigEndian>()?),
+                'H' => AnyInt::I16(stream.read_i16::<BigEndian>()?),
+                'W' => AnyInt::I32(stream.read_i32::<BigEndian>()?),
+                'Q' => AnyInt::I64(stream.read_i64::<BigEndian>()?),
                 _ => {
                     return Err(Error::new(
                         ErrorKind::InvalidInput,
@@ -271,12 +272,12 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
                 }
             },
             Endianness::LittleEndian => match c {
-                'h' => AnyInt::U16(stream.read_u16::<byteorder::LittleEndian>()?),
-                'w' => AnyInt::U32(stream.read_u32::<byteorder::LittleEndian>()?),
-                'q' => AnyInt::U64(stream.read_u64::<byteorder::LittleEndian>()?),
-                'H' => AnyInt::I16(stream.read_i16::<byteorder::LittleEndian>()?),
-                'W' => AnyInt::I32(stream.read_i32::<byteorder::LittleEndian>()?),
-                'Q' => AnyInt::I64(stream.read_i64::<byteorder::LittleEndian>()?),
+                'h' => AnyInt::U16(stream.read_u16::<LittleEndian>()?),
+                'w' => AnyInt::U32(stream.read_u32::<LittleEndian>()?),
+                'q' => AnyInt::U64(stream.read_u64::<LittleEndian>()?),
+                'H' => AnyInt::I16(stream.read_i16::<LittleEndian>()?),
+                'W' => AnyInt::I32(stream.read_i32::<LittleEndian>()?),
+                'Q' => AnyInt::I64(stream.read_i64::<LittleEndian>()?),
                 _ => {
                     return Err(Error::new(
                         ErrorKind::InvalidInput,
@@ -305,25 +306,12 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
 /// * The stream ends before `len` bytes are read.
 /// * The stream returns an error.
 #[inline]
-pub fn read_lpbuf<S: SeekRead>(
+pub fn read_lpbuf<S: Read>(
     mut stream: S,
     lptype: LPWidth,
     lpend: Endianness,
 ) -> StreamResult<Vec<u8>> {
-    let len = match lpend {
-        Endianness::BigEndian => match lptype {
-            LPWidth::LP8 => stream.read_u8()? as usize,
-            LPWidth::LP16 => stream.read_u16::<byteorder::BigEndian>()? as usize,
-            LPWidth::LP32 => stream.read_u32::<byteorder::BigEndian>()? as usize,
-            LPWidth::LP64 => stream.read_u64::<byteorder::BigEndian>()? as usize,
-        },
-        Endianness::LittleEndian => match lptype {
-            LPWidth::LP8 => stream.read_u8()? as usize,
-            LPWidth::LP16 => stream.read_u16::<byteorder::LittleEndian>()? as usize,
-            LPWidth::LP32 => stream.read_u32::<byteorder::LittleEndian>()? as usize,
-            LPWidth::LP64 => stream.read_u64::<byteorder::LittleEndian>()? as usize,
-        },
-    };
+    let len = read_lpend(&mut stream, lptype, lpend)?;
 
     let mut buf = vec![0; len];
     stream.read_exact(&mut buf)?;
@@ -364,7 +352,7 @@ pub fn read_lpstr<S: SeekRead>(
 ///
 /// # Returns
 /// The read string.
-pub fn read_cstr<S: SeekRead>(mut stream: S, maxlen: usize) -> StreamResult<String> {
+pub fn read_cstr<S: Read>(mut stream: S, maxlen: usize) -> StreamResult<String> {
     let mut buf = vec![0; maxlen];
     let mut i = 0;
     loop {
@@ -386,6 +374,33 @@ pub fn read_cstr<S: SeekRead>(mut stream: S, maxlen: usize) -> StreamResult<Stri
         Ok(s) => Ok(s),
         Err(e) => Err(Error::new(ErrorKind::InvalidData, e)),
     }
+}
+
+/// Read a length prefixed map from the stream.
+/// # Arguments
+/// * `stream`: The stream to read from.
+/// * `endianness`: The endianness of the length prefix.
+/// * `lpwidth`: The width of the length prefix.
+///
+/// # Returns
+/// The read map.
+pub fn read_map<S: Read, M: MapType<'static, String, AnyInt>>(
+    mut stream: S,
+    endianness: Endianness,
+    lpwidth: LPWidth,
+) -> StreamResult<M> {
+    let mut map = M::new();
+    let len = read_lpend(&mut stream, lpwidth, endianness)?;
+
+    for _ in 0..len {
+        let key = read_cstr(&mut stream, 256)?;
+        let value = match endianness {
+            Endianness::LittleEndian => AnyInt::from(stream.read_u64::<LittleEndian>()?),
+            Endianness::BigEndian => AnyInt::from(stream.read_u64::<BigEndian>()?),
+        };
+        map.insert(key, value);
+    }
+    Ok(map)
 }
 
 #[cfg(test)]
