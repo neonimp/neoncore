@@ -2,13 +2,13 @@
 //! Like finding a signature in a stream, or reading a struct from a stream.
 
 use crate::streams::helpers::read_lpend;
-use crate::streams::{AnyInt, Endianness, MapType, SeekRead};
+use crate::streams::{AnyInt, Endianness, MapType, SeekRead, StreamError};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io::{Error, ErrorKind, Read, SeekFrom};
 
 use super::LPWidth;
 
-pub type StreamResult<T> = Result<T, Error>;
+pub type StreamResult<T> = Result<T, StreamError>;
 
 /// Finds a signature in a stream `S: Read + Seek` and returns it's position.
 /// The stream is left at the position of the signature.
@@ -49,10 +49,10 @@ pub fn find_u32_signature<S: SeekRead>(
     while pos < limit {
         let read = stream.read(byte)?;
         if read == 0 {
-            return Err(Error::new(
+            return Err(StreamError::from(Error::new(
                 ErrorKind::UnexpectedEof,
                 "Unexpected end of stream",
-            ));
+            )));
         }
 
         if byte[0] == sig_fbyte {
@@ -117,10 +117,10 @@ pub fn find_u64_signature<S: SeekRead>(
     while pos < limit {
         let read = stream.read(byte)?;
         if read == 0 {
-            return Err(Error::new(
+            return Err(StreamError::from(Error::new(
                 ErrorKind::UnexpectedEof,
                 "Unexpected end of stream",
-            ));
+            )));
         }
 
         if byte[0] == sig_fbyte {
@@ -194,11 +194,16 @@ pub fn find_all_u64_signatures<S: SeekRead>(
 /// | P    | usize | Platform dependent  |
 ///
 /// # Returns
-/// The number of bytes required to read the given format string with [`read_pattern`].
-pub fn pattern_required_bytes(format: &str) -> u64 {
+/// The number of bytes required to read the given format string using [`read_pattern`].
+pub fn pattern_required_bytes(format: &str) -> StreamResult<u64> {
     let mut bytes = 0;
     let chars = format.chars();
-    for c in chars {
+    for (pos, c) in chars.enumerate() {
+        if pos > 0 && ['!', '@'].contains(&c) {
+            return Err(StreamError::StreamError(format!(
+                "Endianness can only be specified once at the beginning of the format string, found '{}' at position {}", c, pos
+            )));
+        }
         match c {
             // endianness
             '!' | '@' => {}
@@ -208,10 +213,10 @@ pub fn pattern_required_bytes(format: &str) -> u64 {
             'h' | 'H' => bytes += 2,
             'w' | 'W' => bytes += 4,
             'q' | 'Q' => bytes += 8,
-            _ => panic!("Unknown format character: {}", c),
+            _ => return Err(StreamError::InvalidChar(c, pos)),
         }
     }
-    bytes
+    Ok(bytes)
 }
 
 /// Read the stream according to the given `format` and return the result.
@@ -224,7 +229,7 @@ pub fn pattern_required_bytes(format: &str) -> u64 {
 /// See [`pattern_required_bytes`] for a list of format characters.
 ///
 /// # Returns
-/// a `Vec<AnyInt>` containing the read values.
+/// a ```Vec<AnyInt>``` containing the read values.
 pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<AnyInt>> {
     let mut values = Vec::new();
     let mut chars = format.chars();
@@ -232,14 +237,21 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
         Some('!') => Endianness::BigEndian,
         Some('@') => Endianness::LittleEndian,
         _ => {
-            return Err(Error::new(
+            return Err(StreamError::from(Error::new(
                 ErrorKind::InvalidInput,
                 "Format string must start with either ! or @",
-            ))
+            )))
         }
     };
 
-    for c in chars {
+    for (pos, c) in chars.enumerate() {
+        // handle endianness only once
+        if pos > 0 && ['!', '@'].contains(&c) {
+            return Err(StreamError::StreamError(format!(
+                "Endianness can only be specified once at the beginning of the format string, found '{}' at position {}", c, pos
+            )));
+        }
+
         // skip a byte
         if c == 'x' {
             stream.read_u8()?;
@@ -264,12 +276,7 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
                 'H' => AnyInt::I16(stream.read_i16::<BigEndian>()?),
                 'W' => AnyInt::I32(stream.read_i32::<BigEndian>()?),
                 'Q' => AnyInt::I64(stream.read_i64::<BigEndian>()?),
-                _ => {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        format!("Unknown format character: {}", c),
-                    ))
-                }
+                _ => return Err(StreamError::InvalidChar(c, pos)),
             },
             Endianness::LittleEndian => match c {
                 'h' => AnyInt::U16(stream.read_u16::<LittleEndian>()?),
@@ -278,12 +285,7 @@ pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<An
                 'H' => AnyInt::I16(stream.read_i16::<LittleEndian>()?),
                 'W' => AnyInt::I32(stream.read_i32::<LittleEndian>()?),
                 'Q' => AnyInt::I64(stream.read_i64::<LittleEndian>()?),
-                _ => {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        format!("Unknown format character: {}", c),
-                    ))
-                }
+                _ => return Err(StreamError::InvalidChar(c, pos)),
             },
         };
         values.push(v);
@@ -341,7 +343,7 @@ pub fn read_lpstr<S: SeekRead>(
 ) -> StreamResult<String> {
     let buf = read_lpbuf(&mut stream, lptype, lpend)?;
 
-    String::from_utf8(buf).map_err(|e| Error::new(ErrorKind::InvalidData, e))
+    String::from_utf8(buf).map_err(|e| StreamError::from(Error::new(ErrorKind::InvalidData, e)))
 }
 
 /// read a null terminated string from the stream of at most `maxlen` bytes.
@@ -357,10 +359,10 @@ pub fn read_cstr<S: Read>(mut stream: S, maxlen: usize) -> StreamResult<String> 
     let mut i = 0;
     loop {
         if i >= maxlen {
-            return Err(Error::new(
+            return Err(StreamError::from(Error::new(
                 ErrorKind::InvalidData,
                 "String is longer than maxlen",
-            ));
+            )));
         }
         let b = stream.read_u8()?;
         if b == 0 {
@@ -372,7 +374,7 @@ pub fn read_cstr<S: Read>(mut stream: S, maxlen: usize) -> StreamResult<String> 
     buf.truncate(i);
     match String::from_utf8(buf) {
         Ok(s) => Ok(s),
-        Err(e) => Err(Error::new(ErrorKind::InvalidData, e)),
+        Err(e) => Err(StreamError::from(Error::new(ErrorKind::InvalidData, e))),
     }
 }
 
@@ -450,8 +452,14 @@ mod tests {
 
     #[test]
     fn test_pattern_req_bytes() {
-        let v = pattern_required_bytes("@xqqqx");
+        let v = pattern_required_bytes("@xqqqx").unwrap();
         assert_eq!(v, 26);
+    }
+
+    #[test]
+    fn test_pattern_req_bytes_err() {
+        let v = pattern_required_bytes("@xqq@q");
+        assert!(v.is_err());
     }
 
     #[test]

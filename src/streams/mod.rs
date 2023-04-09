@@ -3,6 +3,7 @@
 
 use byteorder::WriteBytesExt;
 use std::io::{Cursor, Read, Seek, Write};
+use thiserror::Error;
 
 mod helpers;
 pub mod read;
@@ -23,6 +24,16 @@ pub trait LPType<T, R: ?Sized> {
 impl<T: Read + Seek> SeekRead for T {}
 impl<T: Write + Seek> SeekWrite for T {}
 impl<T: Read + Write + Seek> SeekReadWrite for T {}
+
+#[derive(Debug, Error)]
+pub enum StreamError {
+    #[error("Stream error: {0}")]
+    StreamError(String),
+    #[error("Invalid character on pattern: {0} at position {1}")]
+    InvalidChar(char, usize),
+    #[error("Stream error: {0}")]
+    IOError(#[from] std::io::Error),
+}
 
 /// The endianness of a stream
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
@@ -332,7 +343,11 @@ where
     }
 }
 
-/// A type that can hold any integer type
+/// A type that can hold any integer type.
+///
+/// it implements [`TryFrom`] and [`Into`] for all integer types
+/// it also has the u48 and i48 types which are represented as u64 and i64
+/// in memory but are serialized as 6 bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AnyInt {
     U8(u8),
