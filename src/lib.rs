@@ -2,5 +2,4 @@
 //! working with binary streams in memory or otherwise.
 
 pub mod const_fn;
-pub mod sate_machines;
 pub mod streams;
