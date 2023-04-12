@@ -4,6 +4,7 @@
 use crate::streams::helpers::read_lpend;
 use crate::streams::{AnyInt, Endianness, MapType, SeekRead, StreamError};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use std::collections::HashMap;
 use std::io::{Error, ErrorKind, Read, SeekFrom};
 use std::marker::PhantomData;
 
@@ -381,7 +382,7 @@ impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
         self
     }
 
-    /// How many input bytes are required at least to read the given format.
+    /// How many input bytes are required at least to statisfy this pattern.
     ///
     /// # Returns
     /// The number of bytes required to read the given format string using [`read_pattern`].
@@ -456,6 +457,115 @@ impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
             values.push(v);
         }
         Ok(values)
+    }
+}
+
+pub struct ReadStruct<Ord: byteorder::ByteOrder> {
+    fields: ReadPattern<Ord>,
+    field_names: Vec<String>,
+    results: HashMap<String, AnyInt>,
+}
+
+impl ReadStruct<byteorder::BigEndian> {
+    pub fn new_be() -> Self {
+        Self::new()
+    }
+}
+
+impl ReadStruct<byteorder::LittleEndian> {
+    pub fn new_le() -> Self {
+        Self::new()
+    }
+}
+
+impl<Ord: byteorder::ByteOrder> ReadStruct<Ord> {
+    pub fn new() -> Self {
+        Self {
+            fields: ReadPattern::<Ord>::new(),
+            field_names: Vec::new(),
+            results: HashMap::new(),
+        }
+    }
+
+    pub fn add_u8_field(mut self, name: &str) -> Self {
+        self.fields.add_u8();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_u16_field(mut self, name: &str) -> Self {
+        self.fields.add_u16();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_u32_field(mut self, name: &str) -> Self {
+        self.fields.add_u32();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_u64_field(mut self, name: &str) -> Self {
+        self.fields.add_u64();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_usize_field(mut self, name: &str) -> Self {
+        self.fields.add_usize();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_i8_field(mut self, name: &str) -> Self {
+        self.fields.add_i8();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_i16_field(mut self, name: &str) -> Self {
+        self.fields.add_i16();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_i32_field(mut self, name: &str) -> Self {
+        self.fields.add_i32();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_i64_field(mut self, name: &str) -> Self {
+        self.fields.add_i64();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_padding(mut self, size: usize) -> Self {
+        self.fields.add_padding(size);
+        self
+    }
+
+    pub fn required_bytes(&self) -> u64 {
+        self.fields.pattern_required_bytes()
+    }
+
+    pub fn read<S: Read>(mut self, mut stream: S) -> StreamResult<Self> {
+        let values = self.fields.read_pattern(&mut stream)?;
+        for (name, value) in self.field_names.iter().zip(values.iter()) {
+            self.results.insert(name.clone(), *value);
+        }
+        Ok(self)
+    }
+
+    pub fn get(&self, name: &str) -> Option<AnyInt> {
+        self.results.get(name).cloned()
+    }
+}
+
+impl<Ord: byteorder::ByteOrder> Default for ReadStruct<Ord> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -548,6 +658,32 @@ mod tests {
                 AnyInt::U64(0x5545573722e657a),
                 AnyInt::U64(0x4b5063eebaa90100)
             ]
+        );
+    }
+
+    #[test]
+    fn test_read_struct() {
+        let stream = std::io::Cursor::new(DATA);
+        let v = ReadStruct::new_le()
+            .add_u64_field("test1")
+            .add_u64_field("test2")
+            .add_u64_field("test3")
+            .read(stream)
+            .unwrap();
+
+        assert_eq!(
+            TryInto::<u64>::try_into(v.get("test1").unwrap()).unwrap(),
+            0x69735f78616d2f00
+        );
+
+        assert_eq!(
+            TryInto::<u64>::try_into(v.get("test2").unwrap()).unwrap(),
+            0x5545573722e657a
+        );
+
+        assert_eq!(
+            TryInto::<u64>::try_into(v.get("test3").unwrap()).unwrap(),
+            0x4b5063eebaa90100
         );
     }
 }
