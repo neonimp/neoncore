@@ -1,9 +1,9 @@
 [package]
 name = "neoncore"
-version = "5.0.0"
+version = "6.0.0+beta"
 authors = ["Matheus Xavier <mxavier@neonlayer.com>"]
 license = "BSD-3-Clause"
-description = "Core utility library for working with binary DATA streams."
+description = "Core utility library for working with binary data streams."
 edition = "2021"
 repository = "https://github.com/neonimp/neoncore.git"
 
