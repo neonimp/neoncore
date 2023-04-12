@@ -288,12 +288,12 @@ pub fn read_map<S: Read, M: MapType<'static, String, AnyInt>>(
     Ok(map)
 }
 
-pub struct ReadPattern<Ord: byteorder::ByteOrder> {
-    pattern: Vec<ReadPatternTokens>,
+pub struct PatternReader<Ord: byteorder::ByteOrder> {
+    pattern: Vec<PatternReaderTokens>,
     endianess: PhantomData<Ord>,
 }
 
-pub enum ReadPatternTokens {
+pub enum PatternReaderTokens {
     Padding(usize),
     U8,
     U16,
@@ -306,19 +306,19 @@ pub enum ReadPatternTokens {
     USize,
 }
 
-impl ReadPattern<byteorder::BigEndian> {
+impl PatternReader<byteorder::BigEndian> {
     pub fn new_be() -> Self {
         Self::new()
     }
 }
 
-impl ReadPattern<byteorder::LittleEndian> {
+impl PatternReader<byteorder::LittleEndian> {
     pub fn new_le() -> Self {
         Self::new()
     }
 }
 
-impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
+impl<Ord: byteorder::ByteOrder> PatternReader<Ord> {
     pub fn new() -> Self {
         let pattern = Vec::new();
         Self {
@@ -328,57 +328,57 @@ impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
     }
 
     pub fn add_u8(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::U8);
+        self.pattern.push(PatternReaderTokens::U8);
         self
     }
 
     pub fn add_u16(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::U16);
+        self.pattern.push(PatternReaderTokens::U16);
         self
     }
 
     pub fn add_u32(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::U32);
+        self.pattern.push(PatternReaderTokens::U32);
         self
     }
 
     pub fn add_u64(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::U64);
+        self.pattern.push(PatternReaderTokens::U64);
         self
     }
 
     pub fn add_i8(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::I8);
+        self.pattern.push(PatternReaderTokens::I8);
         self
     }
 
     pub fn add_i16(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::I16);
+        self.pattern.push(PatternReaderTokens::I16);
         self
     }
 
     pub fn add_i32(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::I32);
+        self.pattern.push(PatternReaderTokens::I32);
         self
     }
 
     pub fn add_i64(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::I64);
+        self.pattern.push(PatternReaderTokens::I64);
         self
     }
 
     pub fn add_usize(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::USize);
+        self.pattern.push(PatternReaderTokens::USize);
         self
     }
 
     pub fn add_padding(&mut self, len: usize) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::Padding(len));
+        self.pattern.push(PatternReaderTokens::Padding(len));
         self
     }
 
     pub fn add_pad_byte(&mut self) -> &mut Self {
-        self.pattern.push(ReadPatternTokens::Padding(1));
+        self.pattern.push(PatternReaderTokens::Padding(1));
         self
     }
 
@@ -391,12 +391,12 @@ impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
         for tkn in self.pattern.iter() {
             match tkn {
                 // skip
-                ReadPatternTokens::Padding(sz) => bytes += sz,
-                ReadPatternTokens::U8 | ReadPatternTokens::I8 => bytes += 1,
-                ReadPatternTokens::U16 | ReadPatternTokens::I16 => bytes += 2,
-                ReadPatternTokens::U32 | ReadPatternTokens::I32 => bytes += 4,
-                ReadPatternTokens::U64 | ReadPatternTokens::I64 => bytes += 8,
-                ReadPatternTokens::USize => {
+                PatternReaderTokens::Padding(sz) => bytes += sz,
+                PatternReaderTokens::U8 | PatternReaderTokens::I8 => bytes += 1,
+                PatternReaderTokens::U16 | PatternReaderTokens::I16 => bytes += 2,
+                PatternReaderTokens::U32 | PatternReaderTokens::I32 => bytes += 4,
+                PatternReaderTokens::U64 | PatternReaderTokens::I64 => bytes += 8,
+                PatternReaderTokens::USize => {
                     bytes += std::mem::size_of::<usize>();
                 }
             }
@@ -419,7 +419,7 @@ impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
         let mut values = Vec::new();
 
         for tkn in self.pattern.iter() {
-            if let ReadPatternTokens::Padding(size) = tkn {
+            if let PatternReaderTokens::Padding(size) = tkn {
                 for _ in 0..*size {
                     stream.read_u8()?;
                 }
@@ -427,8 +427,8 @@ impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
             }
 
             let v = match tkn {
-                ReadPatternTokens::U8 => Some(AnyInt::U8(stream.read_u8()?)),
-                ReadPatternTokens::I8 => Some(AnyInt::I8(stream.read_i8()?)),
+                PatternReaderTokens::U8 => Some(AnyInt::U8(stream.read_u8()?)),
+                PatternReaderTokens::I8 => Some(AnyInt::I8(stream.read_i8()?)),
                 _ => None,
             };
 
@@ -439,13 +439,13 @@ impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
 
             // the rest of the format characters require at least 2 bytes
             let v = match tkn {
-                ReadPatternTokens::U16 => AnyInt::U16(stream.read_u16::<Ord>()?),
-                ReadPatternTokens::U32 => AnyInt::U32(stream.read_u32::<Ord>()?),
-                ReadPatternTokens::U64 => AnyInt::U64(stream.read_u64::<Ord>()?),
-                ReadPatternTokens::I16 => AnyInt::I16(stream.read_i16::<Ord>()?),
-                ReadPatternTokens::I32 => AnyInt::I32(stream.read_i32::<Ord>()?),
-                ReadPatternTokens::I64 => AnyInt::I64(stream.read_i64::<Ord>()?),
-                ReadPatternTokens::USize => {
+                PatternReaderTokens::U16 => AnyInt::U16(stream.read_u16::<Ord>()?),
+                PatternReaderTokens::U32 => AnyInt::U32(stream.read_u32::<Ord>()?),
+                PatternReaderTokens::U64 => AnyInt::U64(stream.read_u64::<Ord>()?),
+                PatternReaderTokens::I16 => AnyInt::I16(stream.read_i16::<Ord>()?),
+                PatternReaderTokens::I32 => AnyInt::I32(stream.read_i32::<Ord>()?),
+                PatternReaderTokens::I64 => AnyInt::I64(stream.read_i64::<Ord>()?),
+                PatternReaderTokens::USize => {
                     if std::mem::size_of::<usize>() == 4 {
                         AnyInt::U32(stream.read_u32::<Ord>()?)
                     } else {
@@ -460,28 +460,28 @@ impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
     }
 }
 
-pub struct ReadStruct<Ord: byteorder::ByteOrder> {
-    fields: ReadPattern<Ord>,
+pub struct StructReader<Ord: byteorder::ByteOrder> {
+    fields: PatternReader<Ord>,
     field_names: Vec<String>,
     results: HashMap<String, AnyInt>,
 }
 
-impl ReadStruct<byteorder::BigEndian> {
+impl StructReader<byteorder::BigEndian> {
     pub fn new_be() -> Self {
         Self::new()
     }
 }
 
-impl ReadStruct<byteorder::LittleEndian> {
+impl StructReader<byteorder::LittleEndian> {
     pub fn new_le() -> Self {
         Self::new()
     }
 }
 
-impl<Ord: byteorder::ByteOrder> ReadStruct<Ord> {
+impl<Ord: byteorder::ByteOrder> StructReader<Ord> {
     pub fn new() -> Self {
         Self {
-            fields: ReadPattern::<Ord>::new(),
+            fields: PatternReader::<Ord>::new(),
             field_names: Vec::new(),
             results: HashMap::new(),
         }
@@ -563,13 +563,13 @@ impl<Ord: byteorder::ByteOrder> ReadStruct<Ord> {
     }
 }
 
-impl<Ord: byteorder::ByteOrder> Default for ReadStruct<Ord> {
+impl<Ord: byteorder::ByteOrder> Default for StructReader<Ord> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<Ord: byteorder::ByteOrder> Default for ReadPattern<Ord> {
+impl<Ord: byteorder::ByteOrder> Default for PatternReader<Ord> {
     fn default() -> Self {
         Self::new()
     }
@@ -632,7 +632,7 @@ mod tests {
 
     #[test]
     fn test_pattern_req_bytes() {
-        let v = ReadPattern::new_le()
+        let v = PatternReader::new_le()
             .add_padding(2)
             .add_u64()
             .add_u64()
@@ -645,7 +645,7 @@ mod tests {
     #[test]
     fn test_read_pattern() {
         let stream = std::io::Cursor::new(DATA);
-        let v = ReadPattern::new_le()
+        let v = PatternReader::new_le()
             .add_u64()
             .add_u64()
             .add_u64()
@@ -664,7 +664,7 @@ mod tests {
     #[test]
     fn test_read_struct() {
         let stream = std::io::Cursor::new(DATA);
-        let v = ReadStruct::new_le()
+        let v = StructReader::new_le()
             .add_u64_field("test1")
             .add_u64_field("test2")
             .add_u64_field("test3")
