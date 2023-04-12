@@ -5,6 +5,7 @@ use crate::streams::helpers::read_lpend;
 use crate::streams::{AnyInt, Endianness, MapType, SeekRead, StreamError};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io::{Error, ErrorKind, Read, SeekFrom};
+use std::marker::PhantomData;
 
 use super::LPWidth;
 
@@ -174,125 +175,6 @@ pub fn find_all_u64_signatures<S: SeekRead>(
     }
 }
 
-/// How many input bytes are required at least to read the given format string.
-///
-/// # Format string
-///
-/// | Char | Width | Meaning             |
-/// |------|-------|---------------------|
-/// | !    | -     | BigEndian           |
-/// | @    | -     | Little endian       |
-/// | x    | 1     | skips a single byte |
-/// | c    | 1     | unsigned            |
-/// | C    | 1     | signed              |
-/// | h    | 2     | unsigned            |
-/// | H    | 2     | signed              |
-/// | w    | 4     | unsigned            |
-/// | W    | 4     | signed              |
-/// | q    | 8     | unsigned            |
-/// | Q    | 8     | signed              |
-/// | P    | usize | Platform dependent  |
-///
-/// # Returns
-/// The number of bytes required to read the given format string using [`read_pattern`].
-pub fn pattern_required_bytes(format: &str) -> StreamResult<u64> {
-    let mut bytes = 0;
-    let chars = format.chars();
-    for (pos, c) in chars.enumerate() {
-        if pos > 0 && ['!', '@'].contains(&c) {
-            return Err(StreamError::StreamError(format!(
-                "Endianness can only be specified once at the beginning of the format string, found '{}' at position {}", c, pos
-            )));
-        }
-        match c {
-            // endianness
-            '!' | '@' => {}
-            // skip
-            'x' => bytes += 1,
-            'c' | 'C' => bytes += 1,
-            'h' | 'H' => bytes += 2,
-            'w' | 'W' => bytes += 4,
-            'q' | 'Q' => bytes += 8,
-            _ => return Err(StreamError::InvalidChar(c, pos)),
-        }
-    }
-    Ok(bytes)
-}
-
-/// Read the stream according to the given `format` and return the result.
-///
-/// # Arguments
-/// * `stream`: The stream to read from.
-/// * `format`: The format string.
-///
-/// # Format characters
-/// See [`pattern_required_bytes`] for a list of format characters.
-///
-/// # Returns
-/// a ```Vec<AnyInt>``` containing the read values.
-pub fn read_pattern<S: Read>(mut stream: S, format: &str) -> StreamResult<Vec<AnyInt>> {
-    let mut values = Vec::new();
-    let mut chars = format.chars();
-    let endianness = match chars.next() {
-        Some('!') => Endianness::BigEndian,
-        Some('@') => Endianness::LittleEndian,
-        _ => {
-            return Err(StreamError::from(Error::new(
-                ErrorKind::InvalidInput,
-                "Format string must start with either ! or @",
-            )))
-        }
-    };
-
-    for (pos, c) in chars.enumerate() {
-        // handle endianness only once
-        if pos > 0 && ['!', '@'].contains(&c) {
-            return Err(StreamError::StreamError(format!(
-                "Endianness can only be specified once at the beginning of the format string, found '{}' at position {}", c, pos
-            )));
-        }
-
-        // skip a byte
-        if c == 'x' {
-            stream.read_u8()?;
-            continue;
-        }
-
-        // read a byte
-        if c == 'c' {
-            values.push(AnyInt::U8(stream.read_u8()?));
-            continue;
-        } else if c == 'C' {
-            values.push(AnyInt::I8(stream.read_i8()?));
-            continue;
-        }
-
-        // the rest of the format characters require at least 2 bytes
-        let v = match endianness {
-            Endianness::BigEndian => match c {
-                'h' => AnyInt::U16(stream.read_u16::<BigEndian>()?),
-                'w' => AnyInt::U32(stream.read_u32::<BigEndian>()?),
-                'q' => AnyInt::U64(stream.read_u64::<BigEndian>()?),
-                'H' => AnyInt::I16(stream.read_i16::<BigEndian>()?),
-                'W' => AnyInt::I32(stream.read_i32::<BigEndian>()?),
-                'Q' => AnyInt::I64(stream.read_i64::<BigEndian>()?),
-                _ => return Err(StreamError::InvalidChar(c, pos)),
-            },
-            Endianness::LittleEndian => match c {
-                'h' => AnyInt::U16(stream.read_u16::<LittleEndian>()?),
-                'w' => AnyInt::U32(stream.read_u32::<LittleEndian>()?),
-                'q' => AnyInt::U64(stream.read_u64::<LittleEndian>()?),
-                'H' => AnyInt::I16(stream.read_i16::<LittleEndian>()?),
-                'W' => AnyInt::I32(stream.read_i32::<LittleEndian>()?),
-                'Q' => AnyInt::I64(stream.read_i64::<LittleEndian>()?),
-                _ => return Err(StreamError::InvalidChar(c, pos)),
-            },
-        };
-        values.push(v);
-    }
-    Ok(values)
-}
-
 /// Read a length prefixed buffer from the stream.
 ///
 /// # Arguments
@@ -405,10 +287,187 @@ pub fn read_map<S: Read, M: MapType<'static, String, AnyInt>>(
     Ok(map)
 }
 
+pub struct ReadPattern<Ord: byteorder::ByteOrder> {
+    pattern: Vec<ReadPatternTokens>,
+    endianess: PhantomData<Ord>,
+}
+
+pub enum ReadPatternTokens {
+    Padding(usize),
+    U8,
+    U16,
+    U32,
+    U64,
+    I8,
+    I16,
+    I32,
+    I64,
+    USize,
+}
+
+impl ReadPattern<byteorder::BigEndian> {
+    pub fn new_be() -> Self {
+        Self::new()
+    }
+}
+
+impl ReadPattern<byteorder::LittleEndian> {
+    pub fn new_le() -> Self {
+        Self::new()
+    }
+}
+
+impl<Ord: byteorder::ByteOrder> ReadPattern<Ord> {
+    pub fn new() -> Self {
+        let pattern = Vec::new();
+        Self {
+            pattern,
+            endianess: PhantomData::<Ord>::default(),
+        }
+    }
+
+    pub fn add_u8(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::U8);
+        self
+    }
+
+    pub fn add_u16(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::U16);
+        self
+    }
+
+    pub fn add_u32(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::U32);
+        self
+    }
+
+    pub fn add_u64(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::U64);
+        self
+    }
+
+    pub fn add_i8(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::I8);
+        self
+    }
+
+    pub fn add_i16(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::I16);
+        self
+    }
+
+    pub fn add_i32(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::I32);
+        self
+    }
+
+    pub fn add_i64(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::I64);
+        self
+    }
+
+    pub fn add_usize(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::USize);
+        self
+    }
+
+    pub fn add_padding(&mut self, len: usize) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::Padding(len));
+        self
+    }
+
+    pub fn add_pad_byte(&mut self) -> &mut Self {
+        self.pattern.push(ReadPatternTokens::Padding(1));
+        self
+    }
+
+    /// How many input bytes are required at least to read the given format.
+    ///
+    /// # Returns
+    /// The number of bytes required to read the given format string using [`read_pattern`].
+    pub fn pattern_required_bytes(&self) -> u64 {
+        let mut bytes = 0;
+        for tkn in self.pattern.iter() {
+            match tkn {
+                // skip
+                ReadPatternTokens::Padding(sz) => bytes += sz,
+                ReadPatternTokens::U8 | ReadPatternTokens::I8 => bytes += 1,
+                ReadPatternTokens::U16 | ReadPatternTokens::I16 => bytes += 2,
+                ReadPatternTokens::U32 | ReadPatternTokens::I32 => bytes += 4,
+                ReadPatternTokens::U64 | ReadPatternTokens::I64 => bytes += 8,
+                ReadPatternTokens::USize => {
+                    bytes += std::mem::size_of::<usize>();
+                }
+            }
+        }
+        bytes as u64
+    }
+
+    /// Read the stream according to the given `format` and return the result.
+    ///
+    /// # Arguments
+    /// * `stream`: The stream to read from.
+    /// * `format`: The format string.
+    ///
+    /// # Format characters
+    /// See [`pattern_required_bytes`] for a list of format characters.
+    ///
+    /// # Returns
+    /// a ```Vec<AnyInt>``` containing the read values.
+    pub fn read_pattern<S: Read>(&self, mut stream: S) -> StreamResult<Vec<AnyInt>> {
+        let mut values = Vec::new();
+
+        for tkn in self.pattern.iter() {
+            if let ReadPatternTokens::Padding(size) = tkn {
+                for _ in 0..*size {
+                    stream.read_u8()?;
+                }
+                continue;
+            }
+
+            let v = match tkn {
+                ReadPatternTokens::U8 => Some(AnyInt::U8(stream.read_u8()?)),
+                ReadPatternTokens::I8 => Some(AnyInt::I8(stream.read_i8()?)),
+                _ => None,
+            };
+
+            if let Some(v) = v {
+                values.push(v);
+                continue;
+            }
+
+            // the rest of the format characters require at least 2 bytes
+            let v = match tkn {
+                ReadPatternTokens::U16 => AnyInt::U16(stream.read_u16::<Ord>()?),
+                ReadPatternTokens::U32 => AnyInt::U32(stream.read_u32::<Ord>()?),
+                ReadPatternTokens::U64 => AnyInt::U64(stream.read_u64::<Ord>()?),
+                ReadPatternTokens::I16 => AnyInt::I16(stream.read_i16::<Ord>()?),
+                ReadPatternTokens::I32 => AnyInt::I32(stream.read_i32::<Ord>()?),
+                ReadPatternTokens::I64 => AnyInt::I64(stream.read_i64::<Ord>()?),
+                ReadPatternTokens::USize => {
+                    if std::mem::size_of::<usize>() == 4 {
+                        AnyInt::U32(stream.read_u32::<Ord>()?)
+                    } else {
+                        AnyInt::U64(stream.read_u64::<Ord>()?)
+                    }
+                }
+                _ => unreachable!(),
+            };
+            values.push(v);
+        }
+        Ok(values)
+    }
+}
+
+impl<Ord: byteorder::ByteOrder> Default for ReadPattern<Ord> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::streams::read::Endianness::LittleEndian;
     use crate::streams::AnyInt;
 
     const DATA: [u8; 168] = [
@@ -432,9 +491,18 @@ mod tests {
         let sig_2 = 0x06054b50;
         let mut stream = std::io::Cursor::new(DATA);
 
-        let pos_1 = find_u32_signature(&mut stream, sig, None, None, LittleEndian, true).unwrap();
-        let pos_2 =
-            find_u32_signature(&mut stream, sig_2, Some(pos_1), None, LittleEndian, false).unwrap();
+        let pos_1 =
+            find_u32_signature(&mut stream, sig, None, None, Endianness::LittleEndian, true)
+                .unwrap();
+        let pos_2 = find_u32_signature(
+            &mut stream,
+            sig_2,
+            Some(pos_1),
+            None,
+            Endianness::LittleEndian,
+            false,
+        )
+        .unwrap();
 
         assert_eq!(pos_1, 0x16);
         assert_eq!(pos_2, 0x6A);
@@ -445,27 +513,34 @@ mod tests {
         let sig = 0x4b5063eebaa90100;
         let mut stream = std::io::Cursor::new(DATA);
 
-        let pos_1 = find_u64_signature(&mut stream, sig, None, None, LittleEndian, true).unwrap();
+        let pos_1 =
+            find_u64_signature(&mut stream, sig, None, None, Endianness::LittleEndian, true)
+                .unwrap();
 
         assert_eq!(pos_1, 0x10);
     }
 
     #[test]
     fn test_pattern_req_bytes() {
-        let v = pattern_required_bytes("@xqqqx").unwrap();
+        let v = ReadPattern::new_le()
+            .add_padding(2)
+            .add_u64()
+            .add_u64()
+            .add_i16()
+            .add_padding(6)
+            .pattern_required_bytes();
         assert_eq!(v, 26);
-    }
-
-    #[test]
-    fn test_pattern_req_bytes_err() {
-        let v = pattern_required_bytes("@xqq@q");
-        assert!(v.is_err());
     }
 
     #[test]
     fn test_read_pattern() {
         let stream = std::io::Cursor::new(DATA);
-        let v = read_pattern(stream, "@qqq").unwrap();
+        let v = ReadPattern::new_le()
+            .add_u64()
+            .add_u64()
+            .add_u64()
+            .read_pattern(stream)
+            .unwrap();
         assert_eq!(
             v,
             vec![
