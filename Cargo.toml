@@ -1,6 +1,6 @@
 [package]
 name = "neoncore"
-version = "6.0.0+beta"
+version = "6.0.0+beta1"
 authors = ["Matheus Xavier <mxavier@neonlayer.com>"]
 license = "BSD-3-Clause"
 description = "Core utility library for working with binary data streams."
