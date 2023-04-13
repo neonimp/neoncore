@@ -387,7 +387,7 @@ impl<Ord: byteorder::ByteOrder> PatternReader<Ord> {
     /// How many input bytes are required at least to statisfy this pattern.
     ///
     /// # Returns
-    /// The number of bytes required to read the given format string using [`read_pattern`].
+    /// The number of bytes required to read the given format string using [`self::read_pattern`].
     pub fn pattern_required_bytes(&self) -> u64 {
         let mut bytes = 0;
         for tkn in self.pattern.iter() {
@@ -407,13 +407,6 @@ impl<Ord: byteorder::ByteOrder> PatternReader<Ord> {
     }
 
     /// Read the stream according to the given `format` and return the result.
-    ///
-    /// # Arguments
-    /// * `stream`: The stream to read from.
-    /// * `format`: The format string.
-    ///
-    /// # Format characters
-    /// See [`pattern_required_bytes`] for a list of format characters.
     ///
     /// # Returns
     /// a ```Vec<AnyInt>``` containing the read values.
