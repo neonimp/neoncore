@@ -1,8 +1,9 @@
 # NeonCore
 
-NeonCore is a utility library for working with binary DATA in rust.
+This library is aimed at helping build parsers for binary data,
+it contains functions for processing binary blobs like reading a number of values in sequence, or reading a string of a given length.
+it also supports lenght prefixed strings, and reading structs.
 
-It was created primarily for me to centralize code that is shared between my projects,
-however feel free to use it if you find it useful.
+## Usage
+Sample usage for reading an elf file header can be found under the `examples` directory.
 
-Request features and report bugs on the [issue tracker](https://github.com/neonimp/neoncore/issues).

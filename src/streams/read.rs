@@ -4,7 +4,7 @@
 use crate::streams::helpers::read_lpend;
 use crate::streams::{AnyInt, Endianness, MapType, SeekRead, StreamError};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::{Error, ErrorKind, Read, SeekFrom};
 use std::marker::PhantomData;
 
@@ -288,11 +288,13 @@ pub fn read_map<S: Read, M: MapType<'static, String, AnyInt>>(
     Ok(map)
 }
 
+#[derive(Debug)]
 pub struct PatternReader<Ord: byteorder::ByteOrder> {
     pattern: Vec<PatternReaderTokens>,
     endianess: PhantomData<Ord>,
 }
 
+#[derive(Debug)]
 pub enum PatternReaderTokens {
     Padding(usize),
     U8,
@@ -460,10 +462,11 @@ impl<Ord: byteorder::ByteOrder> PatternReader<Ord> {
     }
 }
 
+#[derive(Debug)]
 pub struct StructReader<Ord: byteorder::ByteOrder> {
     fields: PatternReader<Ord>,
     field_names: Vec<String>,
-    results: HashMap<String, AnyInt>,
+    results: BTreeMap<String, AnyInt>,
 }
 
 impl StructReader<byteorder::BigEndian> {
@@ -483,7 +486,7 @@ impl<Ord: byteorder::ByteOrder> StructReader<Ord> {
         Self {
             fields: PatternReader::<Ord>::new(),
             field_names: Vec::new(),
-            results: HashMap::new(),
+            results: BTreeMap::new(),
         }
     }
 
@@ -560,6 +563,14 @@ impl<Ord: byteorder::ByteOrder> StructReader<Ord> {
 
     pub fn get(&self, name: &str) -> Option<AnyInt> {
         self.results.get(name).cloned()
+    }
+}
+
+impl<Ord: byteorder::ByteOrder> std::ops::Index<&str> for StructReader<Ord> {
+    type Output = AnyInt;
+    /// Warning: panics if the field is not found
+    fn index(&self, name: &str) -> &Self::Output {
+        self.results.get(name).unwrap()
     }
 }
 
@@ -677,7 +688,7 @@ mod tests {
         );
 
         assert_eq!(
-            TryInto::<u64>::try_into(v.get("test2").unwrap()).unwrap(),
+            TryInto::<u64>::try_into(v["test2"]).unwrap(),
             0x5545573722e657a
         );
 
