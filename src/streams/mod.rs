@@ -31,6 +31,8 @@ pub enum StreamError {
     StreamError(String),
     #[error("Invalid character on pattern: {0} at position {1}")]
     InvalidChar(char, usize),
+    #[error("Invalid pattern: {0}")]
+    InvalidPattern(String),
     #[error("Stream error: {0}")]
     IOError(#[from] std::io::Error),
 }
@@ -362,6 +364,7 @@ pub enum AnyInt {
     I48(i64),
     I64(i64),
     I128(i128),
+    Bool(bool),
 }
 
 impl AnyInt {
@@ -392,6 +395,7 @@ impl AnyInt {
             }
             AnyInt::I64(v) => writer.write_i64::<byteorder::LittleEndian>(*v),
             AnyInt::I128(v) => writer.write_i128::<byteorder::LittleEndian>(*v),
+            AnyInt::Bool(v) => writer.write_u8(*v as u8),
         }
         .unwrap();
 
@@ -425,6 +429,7 @@ impl AnyInt {
             }
             AnyInt::I64(v) => writer.write_i64::<byteorder::BigEndian>(*v),
             AnyInt::I128(v) => writer.write_i128::<byteorder::BigEndian>(*v),
+            AnyInt::Bool(v) => writer.write_u8(*v as u8),
         }
         .unwrap();
 
@@ -446,6 +451,7 @@ impl AnyInt {
             AnyInt::I48(_) => 8,
             AnyInt::I64(_) => 8,
             AnyInt::I128(_) => 16,
+            AnyInt::Bool(_) => 1,
         }
     }
 
@@ -464,6 +470,7 @@ impl AnyInt {
             AnyInt::I48(_) => 6,
             AnyInt::I64(_) => 8,
             AnyInt::I128(_) => 16,
+            AnyInt::Bool(_) => 1,
         }
     }
 
@@ -555,6 +562,12 @@ impl From<i64> for AnyInt {
 impl From<i128> for AnyInt {
     fn from(v: i128) -> Self {
         AnyInt::I128(v)
+    }
+}
+
+impl From<bool> for AnyInt {
+    fn from(v: bool) -> Self {
+        AnyInt::Bool(v)
     }
 }
 
@@ -695,6 +708,20 @@ impl TryFrom<AnyInt> for i128 {
             v => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Cannot convert {:?} to i128", v),
+            )),
+        }
+    }
+}
+
+impl TryFrom<AnyInt> for bool {
+    type Error = std::io::Error;
+
+    fn try_from(v: AnyInt) -> Result<Self, Self::Error> {
+        match v {
+            AnyInt::Bool(v) => Ok(v),
+            v => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Cannot convert {:?} to bool", v),
             )),
         }
     }

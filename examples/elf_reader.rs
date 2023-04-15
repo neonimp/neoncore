@@ -2,6 +2,7 @@
 
 use neoncore::const_fn::ascii_to_u32_le;
 use neoncore::streams::read::StructReader;
+use neoncore::streams::AnyInt;
 
 const ELF_MAGIC: u32 = ascii_to_u32_le(b"\x7fELF");
 
@@ -24,7 +25,7 @@ fn main() {
 
     let header_reader = StructReader::new_le()
         .add_u32_field("e_mag")
-        .add_u8_field("e_class")
+        .add_expr_field("is_64bit", 1, |v| v == AnyInt::U8(2))
         .add_u8_field("e_data")
         .add_u8_field("e_version")
         .add_u8_field("e_osabi")
@@ -34,6 +35,8 @@ fn main() {
         .add_u16_field("e_machine")
         .add_u32_field("e_version");
 
+    println!("Pattern: {:#?}", header_reader.get_inner_pattern());
+
     let header = header_reader.read(file).unwrap();
 
     assert_eq!(
@@ -41,5 +44,5 @@ fn main() {
         ELF_MAGIC
     );
     println!("ELF Header:");
-    println!("{:#?}", header);
+    println!("{:#?}", header.into_vec());
 }

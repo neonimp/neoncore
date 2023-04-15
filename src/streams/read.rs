@@ -5,8 +5,10 @@ use crate::streams::helpers::read_lpend;
 use crate::streams::{AnyInt, Endianness, MapType, SeekRead, StreamError};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::collections::BTreeMap;
+use std::fmt::{Debug, Formatter};
 use std::io::{Error, ErrorKind, Read, SeekFrom};
 use std::marker::PhantomData;
+use std::u8;
 
 use super::LPWidth;
 
@@ -288,15 +290,21 @@ pub fn read_map<S: Read, M: MapType<'static, String, AnyInt>>(
     Ok(map)
 }
 
+/// Read a number of elements from a stream,
+///
+/// usage of PatternReader is to build a pattern with the provided methods
+/// and then call call the read method with the stream to read from,
+/// the read method will return a vector of the read elements consuming the pattern,
+/// and leaving the stream at the end of the last read element.
 #[derive(Debug)]
 pub struct PatternReader<Ord: byteorder::ByteOrder> {
     pattern: Vec<PatternReaderTokens>,
     endianess: PhantomData<Ord>,
 }
 
-#[derive(Debug)]
 pub enum PatternReaderTokens {
     Padding(usize),
+    Bool,
     U8,
     U16,
     U32,
@@ -306,6 +314,26 @@ pub enum PatternReaderTokens {
     I32,
     I64,
     USize,
+    Expr((u8, Box<dyn Fn(AnyInt) -> bool>)),
+}
+
+impl Debug for PatternReaderTokens {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PatternReaderTokens::Padding(len) => write!(f, "Padding({})", len),
+            PatternReaderTokens::Bool => write!(f, "Bool"),
+            PatternReaderTokens::U8 => write!(f, "U8"),
+            PatternReaderTokens::U16 => write!(f, "U16"),
+            PatternReaderTokens::U32 => write!(f, "U32"),
+            PatternReaderTokens::U64 => write!(f, "U64"),
+            PatternReaderTokens::I8 => write!(f, "I8"),
+            PatternReaderTokens::I16 => write!(f, "I16"),
+            PatternReaderTokens::I32 => write!(f, "I32"),
+            PatternReaderTokens::I64 => write!(f, "I64"),
+            PatternReaderTokens::USize => write!(f, "USize"),
+            PatternReaderTokens::Expr((w, _)) => write!(f, "Expr(par_width: {:?})", w),
+        }
+    }
 }
 
 impl PatternReader<byteorder::BigEndian> {
@@ -379,8 +407,18 @@ impl<Ord: byteorder::ByteOrder> PatternReader<Ord> {
         self
     }
 
-    pub fn add_pad_byte(&mut self) -> &mut Self {
-        self.pattern.push(PatternReaderTokens::Padding(1));
+    pub fn add_bool(&mut self) -> &mut Self {
+        self.pattern.push(PatternReaderTokens::Bool);
+        self
+    }
+
+    pub fn add_expr(
+        &mut self,
+        par_width: u8,
+        expr: impl Fn(AnyInt) -> bool + 'static,
+    ) -> &mut Self {
+        self.pattern
+            .push(PatternReaderTokens::Expr((par_width, Box::new(expr))));
         self
     }
 
@@ -394,13 +432,16 @@ impl<Ord: byteorder::ByteOrder> PatternReader<Ord> {
             match tkn {
                 // skip
                 PatternReaderTokens::Padding(sz) => bytes += sz,
-                PatternReaderTokens::U8 | PatternReaderTokens::I8 => bytes += 1,
+                PatternReaderTokens::U8 | PatternReaderTokens::I8 | PatternReaderTokens::Bool => {
+                    bytes += 1
+                }
                 PatternReaderTokens::U16 | PatternReaderTokens::I16 => bytes += 2,
                 PatternReaderTokens::U32 | PatternReaderTokens::I32 => bytes += 4,
                 PatternReaderTokens::U64 | PatternReaderTokens::I64 => bytes += 8,
                 PatternReaderTokens::USize => {
                     bytes += std::mem::size_of::<usize>();
                 }
+                PatternReaderTokens::Expr(_) => bytes += 0,
             }
         }
         bytes as u64
@@ -447,7 +488,35 @@ impl<Ord: byteorder::ByteOrder> PatternReader<Ord> {
                         AnyInt::U64(stream.read_u64::<Ord>()?)
                     }
                 }
-                _ => unreachable!(),
+                PatternReaderTokens::Bool => {
+                    let v = stream.read_u8()?;
+                    if v == 0 {
+                        AnyInt::Bool(false)
+                    } else {
+                        AnyInt::Bool(true)
+                    }
+                }
+                PatternReaderTokens::Expr((par_width, expr)) => {
+                    let v = match par_width {
+                        1 => AnyInt::U8(stream.read_u8()?),
+                        2 => AnyInt::U16(stream.read_u16::<Ord>()?),
+                        4 => AnyInt::U32(stream.read_u32::<Ord>()?),
+                        8 => AnyInt::U64(stream.read_u64::<Ord>()?),
+                        _ => {
+                            return Err(StreamError::InvalidPattern(
+                                "invalid parameter width".into(),
+                            ))
+                        }
+                    };
+                    if expr(v) {
+                        AnyInt::Bool(true)
+                    } else {
+                        AnyInt::Bool(false)
+                    }
+                }
+                PatternReaderTokens::Padding(_)
+                | PatternReaderTokens::U8
+                | PatternReaderTokens::I8 => unreachable!(),
             };
             values.push(v);
         }
@@ -542,6 +611,18 @@ impl<Ord: byteorder::ByteOrder> StructReader<Ord> {
         self
     }
 
+    pub fn add_bool_field(mut self, name: &str) -> Self {
+        self.fields.add_bool();
+        self.field_names.push(name.to_string());
+        self
+    }
+
+    pub fn add_expr_field(mut self, name: &str, par_width: u8, expr: fn(AnyInt) -> bool) -> Self {
+        self.fields.add_expr(par_width, expr);
+        self.field_names.push(name.to_string());
+        self
+    }
+
     pub fn required_bytes(&self) -> u64 {
         self.fields.pattern_required_bytes()
     }
@@ -556,6 +637,24 @@ impl<Ord: byteorder::ByteOrder> StructReader<Ord> {
 
     pub fn get(&self, name: &str) -> Option<AnyInt> {
         self.results.get(name).cloned()
+    }
+
+    /// reuturns the results as a BTreeMap
+    /// and consumes the StructReader
+    pub fn into_inner(self) -> BTreeMap<String, AnyInt> {
+        self.results
+    }
+
+    pub fn get_inner_pattern(&self) -> &PatternReader<Ord> {
+        &self.fields
+    }
+
+    pub fn results(&self) -> &BTreeMap<String, AnyInt> {
+        &self.results
+    }
+
+    pub fn into_vec(self) -> Vec<(String, AnyInt)> {
+        self.results.into_iter().collect()
     }
 }
 
