@@ -1,4 +1,10 @@
 //! This example shows how to read an ELF file and print some information about it.
+//! This code is based on the ELF specification, which can be found here:
+//! https://refspecs.linuxfoundation.org/elf/gabi4+/ch4.eheader.html
+//! This exaple wont work on big endian systems, because it assumes little endian.
+//! but it will distinguish between 32 and 64 bit ELF files.
+//! even though the [`EHeader`] struct is defined as 64 bit the reader will read the correct size
+//! depending on the ELF file.
 #![allow(dead_code)]
 
 use std::io::Read;

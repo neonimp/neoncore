@@ -146,7 +146,7 @@ impl<Ord: byteorder::ByteOrder> PatternReader<Ord> {
     /// How many input bytes are required at least to statisfy this pattern.
     ///
     /// # Returns
-    /// The number of bytes required to read the given format string using [`self::read_pattern`].
+    /// The number of bytes required to read this pattern.
     pub fn pattern_required_bytes(&self) -> u64 {
         let mut bytes = 0;
         for tkn in self.pattern.iter() {
