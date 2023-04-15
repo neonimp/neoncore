@@ -1,7 +1,7 @@
 //! This example shows how to read an ELF file and print some information about it.
 
 use neoncore::const_fn::ascii_to_u32_le;
-use neoncore::streams::read::StructReader;
+use neoncore::streams::advanced_readers::StructReader;
 use neoncore::streams::AnyInt;
 
 const ELF_MAGIC: u32 = ascii_to_u32_le(b"\x7fELF");

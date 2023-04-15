@@ -5,6 +5,7 @@ use byteorder::WriteBytesExt;
 use std::io::{Cursor, Read, Seek, Write};
 use thiserror::Error;
 
+pub mod advanced_readers;
 mod helpers;
 pub mod read;
 pub mod write;
