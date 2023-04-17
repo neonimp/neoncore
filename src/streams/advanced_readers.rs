@@ -1,3 +1,5 @@
+//! Module containing advanced reader utilities for parsing streams.
+
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
 use std::io::Read;
