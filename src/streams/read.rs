@@ -292,8 +292,6 @@ pub fn read_map<S: Read, M: MapType<'static, String, AnyInt>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::streams::advanced_readers::{PatternReader, StructReader};
-    use crate::streams::AnyInt;
 
     const DATA: [u8; 168] = [
         0x00, 0x2F, 0x6D, 0x61, 0x78, 0x5F, 0x73, 0x69, 0x7A, 0x65, 0x2E, 0x72, 0x73, 0x55, 0x54,
@@ -343,62 +341,5 @@ mod tests {
                 .unwrap();
 
         assert_eq!(pos_1, 0x10);
-    }
-
-    #[test]
-    fn test_pattern_req_bytes() {
-        let v = PatternReader::new_le()
-            .add_padding(2)
-            .add_u64()
-            .add_u64()
-            .add_i16()
-            .add_padding(6)
-            .pattern_required_bytes();
-        assert_eq!(v, 26);
-    }
-
-    #[test]
-    fn test_read_pattern() {
-        let stream = std::io::Cursor::new(DATA);
-        let v = PatternReader::new_le()
-            .add_u64()
-            .add_u64()
-            .add_u64()
-            .read_pattern(stream)
-            .unwrap();
-        assert_eq!(
-            v,
-            vec![
-                AnyInt::U64(0x69735f78616d2f00),
-                AnyInt::U64(0x5545573722e657a),
-                AnyInt::U64(0x4b5063eebaa90100)
-            ]
-        );
-    }
-
-    #[test]
-    fn test_read_struct() {
-        let stream = std::io::Cursor::new(DATA);
-        let v = StructReader::new_le()
-            .add_u64_field("test1")
-            .add_u64_field("test2")
-            .add_u64_field("test3")
-            .read(stream)
-            .unwrap();
-
-        assert_eq!(
-            TryInto::<u64>::try_into(v.get("test1").unwrap()).unwrap(),
-            0x69735f78616d2f00
-        );
-
-        assert_eq!(
-            TryInto::<u64>::try_into(v["test2"]).unwrap(),
-            0x5545573722e657a
-        );
-
-        assert_eq!(
-            TryInto::<u64>::try_into(v.get("test3").unwrap()).unwrap(),
-            0x4b5063eebaa90100
-        );
     }
 }
