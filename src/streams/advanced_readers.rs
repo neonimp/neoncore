@@ -4,7 +4,6 @@ use std::io::Read;
 use std::marker::PhantomData;
 
 use byteorder::ReadBytesExt;
-use serde::{Deserialize, Serialize};
 
 use super::read::StreamResult;
 use super::{AnyInt, StreamError};
@@ -15,13 +14,12 @@ use super::{AnyInt, StreamError};
 /// and then call call the read method with the stream to read from,
 /// the read method will return a vector of the read elements consuming the pattern,
 /// and leaving the stream at the end of the last read element.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct PatternReader<Ord: byteorder::ByteOrder> {
     pattern: Vec<PatternReaderTokens>,
     endianess: PhantomData<Ord>,
 }
 
-#[derive(Serialize, Deserialize)]
 pub enum PatternReaderTokens {
     Padding(usize),
     Bool,
@@ -34,7 +32,6 @@ pub enum PatternReaderTokens {
     I32,
     I64,
     USize,
-    #[serde(skip)]
     Expr((u8, Box<dyn Fn(AnyInt) -> bool>)),
 }
 
