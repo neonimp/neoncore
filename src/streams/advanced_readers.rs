@@ -1,6 +1,6 @@
 //! Module containing advanced reader utilities for parsing streams.
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::io::Read;
 use std::marker::PhantomData;
@@ -248,7 +248,7 @@ impl<Ord: byteorder::ByteOrder> PatternReader<Ord> {
 pub struct StructReader<Ord: byteorder::ByteOrder> {
     fields: PatternReader<Ord>,
     field_names: Vec<String>,
-    results: BTreeMap<String, AnyInt>,
+    results: HashMap<String, AnyInt>,
 }
 
 impl StructReader<byteorder::BigEndian> {
@@ -268,7 +268,7 @@ impl<Ord: byteorder::ByteOrder> StructReader<Ord> {
         Self {
             fields: PatternReader::<Ord>::new(),
             field_names: Vec::new(),
-            results: BTreeMap::new(),
+            results: HashMap::new(),
         }
     }
 
@@ -361,7 +361,7 @@ impl<Ord: byteorder::ByteOrder> StructReader<Ord> {
 
     /// reuturns the results as a BTreeMap
     /// and consumes the StructReader
-    pub fn into_inner(self) -> BTreeMap<String, AnyInt> {
+    pub fn into_inner(self) -> HashMap<String, AnyInt> {
         self.results
     }
 
@@ -369,7 +369,7 @@ impl<Ord: byteorder::ByteOrder> StructReader<Ord> {
         &self.fields
     }
 
-    pub fn results(&self) -> &BTreeMap<String, AnyInt> {
+    pub fn results(&self) -> &HashMap<String, AnyInt> {
         &self.results
     }
 
