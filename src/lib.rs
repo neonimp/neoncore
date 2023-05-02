@@ -2,4 +2,5 @@
 //! working with binary streams in memory or otherwise.
 
 pub mod const_fn;
+#[cfg(feature = "std")]
 pub mod streams;

@@ -1,6 +1,6 @@
 [package]
 name = "neoncore"
-version = "7.0.0-beta2"
+version = "7.0.0-beta3"
 authors = ["Matheus Xavier <mxavier@neonlayer.com>"]
 license = "BSD-3-Clause"
 description = "Core utility library for working with binary data streams."
@@ -16,6 +16,10 @@ opt-level = 3
 
 [dependencies]
 byteorder = "1.4.3"
-parking_lot = "0.12.1"
+parking_lot = { version = "0.12.1", optional = true }
 paste = "1.0.12"
-thiserror = "1.0.40"
+thiserror = { version = "1.0.40", optional = true }
+
+[features]
+default = ["std"]
+std = ["parking_lot", "thiserror"]
